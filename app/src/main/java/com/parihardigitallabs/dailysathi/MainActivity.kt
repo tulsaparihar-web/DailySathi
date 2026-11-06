@@ -133,6 +133,8 @@ private fun DailySathiApp(database: DailySathiDatabase) {
                 onToggle = { item ->
                     scope.launch {
                         database.reminderDao().update(item.copy(isCompleted = !item.isCompleted))
+                        if (item.isCompleted) item.dueAtMillis?.let { ReminderAlarmScheduler.schedule(context, item.id, it) }
+                        else ReminderAlarmScheduler.cancel(context, item.id)
                     }
                 },
                 onDelete = { item -> scope.launch { database.reminderDao().delete(item); ReminderAlarmScheduler.cancel(context, item.id) } }
