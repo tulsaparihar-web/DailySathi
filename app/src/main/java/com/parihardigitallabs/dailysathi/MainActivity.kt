@@ -68,7 +68,7 @@ private fun DailySathiTheme(content: @Composable () -> Unit) {
 }
 
 private enum class MainTab(val label: String) {
-    HOME("Home"), CALENDAR("Calendar"), TASKS("Tasks"), SERVICES("Services"), FAMILY("Family"), SETTINGS("Settings")
+    HOME("Home"), CALENDAR("Calendar"), TASKS("Tasks"), SERVICES("Services"), SETTINGS("Settings")
 }
 
 @Composable
@@ -103,7 +103,6 @@ private fun DailySathiApp(database: DailySathiDatabase) {
                         MainTab.CALENDAR -> Icons.Default.CalendarMonth
                         MainTab.TASKS -> Icons.Default.CheckCircle
                         MainTab.SERVICES -> Icons.Default.Handyman
-                        MainTab.FAMILY -> Icons.Default.People
                         MainTab.SETTINGS -> Icons.Default.Settings
                     }
                     NavigationBarItem(
@@ -152,12 +151,6 @@ private fun DailySathiApp(database: DailySathiDatabase) {
                 onEdit = { editingReminder = it }
             )
             MainTab.SERVICES -> LocalServicesScreen(hindi, Modifier.padding(padding))
-            MainTab.FAMILY -> PlaceholderScreen(
-                if (hindi) "परिवार" else "Family",
-                if (hindi) "परिवार प्रोफाइल अगले चरण में आएँगे।"
-                else "Family profiles and shared tasks are planned for the next milestone.",
-                Icons.Default.People, Modifier.padding(padding)
-            )
             MainTab.SETTINGS -> SettingsScreen(hindi, { hindi = it }, Modifier.padding(padding))
         }
     }
@@ -166,9 +159,9 @@ private fun DailySathiApp(database: DailySathiDatabase) {
         AddReminderDialog(
             hindi = hindi,
             onDismiss = { showAdd = false },
-            onSave = { title, note, dueAtMillis, recurrence, category ->
+            onSave = { title, note, dueAtMillis, recurrence, category, providerName, location, preparationNotes ->
                 scope.launch {
-                    val id = database.reminderDao().insert(Reminder(title = title, note = note, dueAtMillis = dueAtMillis, recurrence = recurrence, category = category))
+                    val id = database.reminderDao().insert(Reminder(title = title, note = note, dueAtMillis = dueAtMillis, recurrence = recurrence, category = category, providerName = providerName, location = location, preparationNotes = preparationNotes))
                     dueAtMillis?.let { ReminderAlarmScheduler.schedule(context, id, it) }
                     if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                         (context as? ComponentActivity)?.requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 501)
@@ -183,9 +176,9 @@ private fun DailySathiApp(database: DailySathiDatabase) {
             hindi = hindi,
             initialReminder = item,
             onDismiss = { editingReminder = null },
-            onSave = { title, note, dueAtMillis, recurrence, category ->
+            onSave = { title, note, dueAtMillis, recurrence, category, providerName, location, preparationNotes ->
                 scope.launch {
-                    val updated = item.copy(title = title, note = note, dueAtMillis = dueAtMillis, recurrence = recurrence, category = category)
+                    val updated = item.copy(title = title, note = note, dueAtMillis = dueAtMillis, recurrence = recurrence, category = category, providerName = providerName, location = location, preparationNotes = preparationNotes)
                     database.reminderDao().update(updated)
                     ReminderAlarmScheduler.cancel(context, item.id)
                     if (!updated.isCompleted) dueAtMillis?.let { ReminderAlarmScheduler.schedule(context, item.id, it) }
@@ -610,7 +603,7 @@ private fun SettingsScreen(hindi: Boolean, onLanguageChange: (Boolean) -> Unit, 
 @Composable
 private fun AddReminderDialog(
     hindi: Boolean, initialReminder: Reminder? = null,
-    onDismiss: () -> Unit, onSave: (String, String, Long?, String, String) -> Unit
+    onDismiss: () -> Unit, onSave: (String, String, Long?, String, String, String, String, String) -> Unit
 ) {
     val context = LocalContext.current
     var title by remember { mutableStateOf(initialReminder?.title.orEmpty()) }
@@ -618,6 +611,9 @@ private fun AddReminderDialog(
     var dueAtMillis by remember { mutableStateOf(initialReminder?.dueAtMillis) }
     var recurrence by remember { mutableStateOf(initialReminder?.recurrence ?: "NONE") }
     var category by remember { mutableStateOf(initialReminder?.category ?: "Personal") }
+    var providerName by remember { mutableStateOf(initialReminder?.providerName.orEmpty()) }
+    var appointmentLocation by remember { mutableStateOf(initialReminder?.location.orEmpty()) }
+    var preparationNotes by remember { mutableStateOf(initialReminder?.preparationNotes.orEmpty()) }
     var categoryExpanded by remember { mutableStateOf(false) }
     var recurrenceExpanded by remember { mutableStateOf(false) }
     val dateFormatter = remember { SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()) }
@@ -668,6 +664,23 @@ private fun AddReminderDialog(
                             )
                         }
                     }
+                }
+                if (category == "Health" || category == "Appointment" || category == "Medication") {
+                    OutlinedTextField(
+                        value = providerName, onValueChange = { providerName = it },
+                        label = { Text(if (hindi) "डॉक्टर / क्लिनिक / दवा का नाम" else "Doctor / clinic / medicine name (optional)") },
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = appointmentLocation, onValueChange = { appointmentLocation = it },
+                        label = { Text(if (hindi) "स्थान / क्लिनिक का पता" else "Location / clinic address (optional)") },
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = preparationNotes, onValueChange = { preparationNotes = it },
+                        label = { Text(if (hindi) "तैयारी / विशेष नोट्स" else "Preparation / extra notes (optional)") },
+                        minLines = 2
+                    )
                 }
                 OutlinedButton(onClick = { chooseDateTime() }, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Default.Schedule, contentDescription = null)
@@ -722,7 +735,7 @@ private fun AddReminderDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { if (title.isNotBlank()) onSave(title.trim(), note.trim(), dueAtMillis, if (dueAtMillis == null) "NONE" else recurrence, category) },
+                onClick = { if (title.isNotBlank()) onSave(title.trim(), note.trim(), dueAtMillis, if (dueAtMillis == null) "NONE" else recurrence, category, providerName.trim(), appointmentLocation.trim(), preparationNotes.trim()) },
                 enabled = title.isNotBlank()
             ) { Text(if (hindi) "सहेजें" else "Save") }
         },
@@ -737,6 +750,5 @@ private fun itemHindi(tab: MainTab): String = when (tab) {
     MainTab.CALENDAR -> "कैलेंडर"
     MainTab.TASKS -> "कार्य"
     MainTab.SERVICES -> "सेवाएँ"
-    MainTab.FAMILY -> "परिवार"
     MainTab.SETTINGS -> "सेटिंग्स"
 }
