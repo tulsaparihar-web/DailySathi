@@ -78,6 +78,12 @@ class ReminderNotificationReceiver : BroadcastReceiver() {
                 val item = DailySathiDatabase.getInstance(context).reminderDao().getById(id)
                 if (item != null && !item.isCompleted) {
                     ReminderAlarmScheduler.showNotification(context, item.title, item.note, item.id)
+                    val nextDue = nextOccurrence(item.dueAtMillis, item.recurrence)
+                    if (nextDue != null) {
+                        DailySathiDatabase.getInstance(context).reminderDao()
+                            .update(item.copy(dueAtMillis = nextDue))
+                        ReminderAlarmScheduler.schedule(context, item.id, nextDue)
+                    }
                 }
             } finally {
                 pending.finish()
@@ -101,4 +107,18 @@ class ReminderBootReceiver : BroadcastReceiver() {
             }
         }
     }
+}
+
+private fun nextOccurrence(dueAtMillis: Long?, recurrence: String): Long? {
+    if (dueAtMillis == null) return null
+    val calendarField = when (recurrence) {
+        "DAILY" -> java.util.Calendar.DAY_OF_YEAR
+        "WEEKLY" -> java.util.Calendar.WEEK_OF_YEAR
+        "MONTHLY" -> java.util.Calendar.MONTH
+        else -> return null
+    }
+    return java.util.Calendar.getInstance().apply {
+        timeInMillis = dueAtMillis
+        add(calendarField, 1)
+    }.timeInMillis
 }
