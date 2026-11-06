@@ -77,6 +77,7 @@ private fun DailySathiApp(database: DailySathiDatabase) {
         .collectAsStateWithLifecycle(initialValue = emptyList())
     var tab by remember { mutableStateOf(MainTab.HOME) }
     var showAdd by remember { mutableStateOf(false) }
+    var editingReminder by remember { mutableStateOf<Reminder?>(null) }
     var hindi by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -141,7 +142,8 @@ private fun DailySathiApp(database: DailySathiDatabase) {
                         else ReminderAlarmScheduler.cancel(context, item.id)
                     }
                 },
-                onDelete = { item -> scope.launch { database.reminderDao().delete(item); ReminderAlarmScheduler.cancel(context, item.id) } }
+                onDelete = { item -> scope.launch { database.reminderDao().delete(item); ReminderAlarmScheduler.cancel(context, item.id) } },
+                onEdit = { editingReminder = it }
             )
             MainTab.FAMILY -> PlaceholderScreen(
                 if (hindi) "परिवार" else "Family",
@@ -165,6 +167,22 @@ private fun DailySathiApp(database: DailySathiDatabase) {
                         (context as? ComponentActivity)?.requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 501)
                     }
                     showAdd = false
+                }
+            }
+        )
+    }
+    editingReminder?.let { item ->
+        AddReminderDialog(
+            hindi = hindi,
+            initialReminder = item,
+            onDismiss = { editingReminder = null },
+            onSave = { title, note, dueAtMillis ->
+                scope.launch {
+                    val updated = item.copy(title = title, note = note, dueAtMillis = dueAtMillis)
+                    database.reminderDao().update(updated)
+                    ReminderAlarmScheduler.cancel(context, item.id)
+                    if (!updated.isCompleted) dueAtMillis?.let { ReminderAlarmScheduler.schedule(context, item.id, it) }
+                    editingReminder = null
                 }
             }
         )
@@ -352,7 +370,7 @@ private fun ReminderRow(reminder: Reminder, hindi: Boolean, onToggle: (Reminder)
 @Composable
 private fun TasksScreen(
     reminders: List<Reminder>, hindi: Boolean, modifier: Modifier,
-    onToggle: (Reminder) -> Unit, onDelete: (Reminder) -> Unit
+    onToggle: (Reminder) -> Unit, onDelete: (Reminder) -> Unit, onEdit: (Reminder) -> Unit
 ) {
     Column(modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 20.dp)) {
         Text(if (hindi) "कार्य और रिमाइंडर" else "Tasks & reminders",
@@ -369,7 +387,16 @@ private fun TasksScreen(
                     Surface(color = Color.White, shape = RoundedCornerShape(16.dp)) {
                         Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
                             Checkbox(reminder.isCompleted, { onToggle(reminder) })
-                            Text(reminder.title, Modifier.weight(1f), fontWeight = FontWeight.Medium)
+                            Column(Modifier.weight(1f)) {
+                                Text(reminder.title, fontWeight = FontWeight.Medium)
+                                reminder.dueAtMillis?.let {
+                                    Text(SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()).format(Date(it)),
+                                        fontSize = 11.sp, color = Slate.copy(alpha = .6f))
+                                }
+                            }
+                            IconButton(onClick = { onEdit(reminder) }) {
+                                Icon(Icons.Default.Edit, contentDescription = "Edit", tint = DailyBlue)
+                            }
                             IconButton(onClick = { onDelete(reminder) }) {
                                 Icon(Icons.Default.DeleteOutline, contentDescription = "Delete", tint = Color.Gray)
                             }
@@ -507,12 +534,13 @@ private fun SettingsScreen(hindi: Boolean, onLanguageChange: (Boolean) -> Unit, 
 
 @Composable
 private fun AddReminderDialog(
-    hindi: Boolean, onDismiss: () -> Unit, onSave: (String, String, Long?) -> Unit
+    hindi: Boolean, initialReminder: Reminder? = null,
+    onDismiss: () -> Unit, onSave: (String, String, Long?) -> Unit
 ) {
     val context = LocalContext.current
-    var title by remember { mutableStateOf("") }
-    var note by remember { mutableStateOf("") }
-    var dueAtMillis by remember { mutableStateOf<Long?>(null) }
+    var title by remember { mutableStateOf(initialReminder?.title.orEmpty()) }
+    var note by remember { mutableStateOf(initialReminder?.note.orEmpty()) }
+    var dueAtMillis by remember { mutableStateOf(initialReminder?.dueAtMillis) }
     val dateFormatter = remember { SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()) }
     fun chooseDateTime() {
         val calendar = Calendar.getInstance().apply { add(Calendar.HOUR_OF_DAY, 1); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0) }
@@ -526,7 +554,7 @@ private fun AddReminderDialog(
     }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (hindi) "नया रिमाइंडर" else "New reminder") },
+        title = { Text(if (initialReminder == null) { if (hindi) "नया रिमाइंडर" else "New reminder" } else { if (hindi) "रिमाइंडर संपादित करें" else "Edit reminder" }) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(
