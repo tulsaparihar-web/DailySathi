@@ -109,7 +109,11 @@ class ReminderBootReceiver : BroadcastReceiver() {
     }
 }
 
-private fun nextOccurrence(dueAtMillis: Long?, recurrence: String): Long? {
+internal fun nextOccurrence(
+    dueAtMillis: Long?,
+    recurrence: String,
+    nowMillis: Long = System.currentTimeMillis()
+): Long? {
     if (dueAtMillis == null) return null
     val calendarField = when (recurrence) {
         "DAILY" -> java.util.Calendar.DAY_OF_YEAR
@@ -117,8 +121,9 @@ private fun nextOccurrence(dueAtMillis: Long?, recurrence: String): Long? {
         "MONTHLY" -> java.util.Calendar.MONTH
         else -> return null
     }
-    return java.util.Calendar.getInstance().apply {
-        timeInMillis = dueAtMillis
-        add(calendarField, 1)
-    }.timeInMillis
+    val next = java.util.Calendar.getInstance().apply { timeInMillis = dueAtMillis }
+    // Catch up missed repeats after the device has been off or the app was unused.
+    // Always return the next future occurrence so the reminder is not silently lost.
+    while (next.timeInMillis <= nowMillis) next.add(calendarField, 1)
+    return next.timeInMillis
 }
