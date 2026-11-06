@@ -12,6 +12,12 @@ interface ReminderDao {
     @Query("SELECT * FROM reminders ORDER BY isCompleted ASC, COALESCE(dueAtMillis, createdAtMillis) ASC")
     fun observeAll(): Flow<List<Reminder>>
 
+    @Query("SELECT * FROM reminders WHERE id = :id LIMIT 1")
+    suspend fun getById(id: Long): Reminder?
+
+    @Query("SELECT * FROM reminders WHERE isCompleted = 0 AND dueAtMillis IS NOT NULL")
+    suspend fun getPendingWithDueDates(): List<Reminder>
+
     @Insert
     suspend fun insert(reminder: Reminder): Long
 
