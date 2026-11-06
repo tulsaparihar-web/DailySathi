@@ -3,9 +3,6 @@ package com.parihardigitallabs.dailysathi
 import android.os.Bundle
 import android.content.Intent
 import android.net.Uri
-import android.content.ContentValues
-import org.json.JSONArray
-import org.json.JSONObject
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.Manifest
@@ -88,6 +85,31 @@ private fun DailySathiApp(database: DailySathiDatabase) {
     val preferences = remember { context.getSharedPreferences("daily_sathi_preferences", android.content.Context.MODE_PRIVATE) }
     var hindi by remember { mutableStateOf(preferences.getBoolean("hindi_language", false)) }
     LaunchedEffect(hindi) { preferences.edit().putBoolean("hindi_language", hindi).apply() }
+    var backupMessage by remember { mutableStateOf<String?>(null) }
+    var restorePreview by remember { mutableStateOf<List<Reminder>?>(null) }
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) scope.launch {
+            runCatching {
+                val json = ReminderBackup.encode(reminders)
+                context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(json) }
+                    ?: error("Unable to write backup file")
+                backupMessage = if (hindi) "बैकअप सफलतापूर्वक सेव हुआ।" else "Backup saved successfully."
+            }.onFailure {
+                backupMessage = (if (hindi) "बैकअप विफल: " else "Backup failed: ") + (it.message ?: "Unknown error")
+            }
+        }
+    }
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) scope.launch {
+            runCatching {
+                val json = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                    ?: error("Unable to read backup file")
+                restorePreview = ReminderBackup.decode(json)
+            }.onFailure {
+                backupMessage = (if (hindi) "रीस्टोर विफल: " else "Restore failed: ") + (it.message ?: "Invalid backup")
+            }
+        }
+    }
 
     Scaffold(
         containerColor = SoftBg,
@@ -158,25 +180,53 @@ private fun DailySathiApp(database: DailySathiDatabase) {
             MainTab.SERVICES -> LocalServicesScreen(hindi, Modifier.padding(padding))
             MainTab.SETTINGS -> SettingsScreen(
                 hindi, { hindi = it }, Modifier.padding(padding),
-                onExport = {
-                    val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-                        addCategory(Intent.CATEGORY_OPENABLE)
-                        type = "application/json"
-                        putExtra(Intent.EXTRA_TITLE, "DailySathi-Backup.json")
-                    }
-                    context.startActivity(intent)
-                },
-                onImport = {
-                    val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                        addCategory(Intent.CATEGORY_OPENABLE)
-                        type = "application/json"
-                    }
-                    context.startActivity(intent)
-                }
+                onExport = { exportLauncher.launch("DailySathi-Backup.json") },
+                onImport = { importLauncher.launch(arrayOf("application/json", "text/*")) }
             )
         }
     }
 
+
+    backupMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = { backupMessage = null },
+            title = { Text(if (hindi) "बैकअप और रीस्टोर" else "Backup & Restore") },
+            text = { Text(message) },
+            confirmButton = { TextButton(onClick = { backupMessage = null }) { Text("OK") } }
+        )
+    }
+    restorePreview?.let { restored ->
+        AlertDialog(
+            onDismissRequest = { restorePreview = null },
+            title = { Text(if (hindi) "बैकअप रीस्टोर करें?" else "Restore this backup?") },
+            text = {
+                Text(if (hindi) "यह डिवाइस के मौजूदा " + reminders.size + " रिमाइंडर हटाकर " + restored.size + " बैकअप रिमाइंडर से बदल देगा।"
+                    else "This will replace the " + reminders.size + " reminders on this device with " + restored.size + " reminders from the backup.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val itemsToRestore = restored
+                    restorePreview = null
+                    scope.launch {
+                        runCatching {
+                            reminders.forEach { ReminderAlarmScheduler.cancel(context, it.id) }
+                            database.reminderDao().replaceAll(itemsToRestore)
+                            itemsToRestore.filter { !it.isCompleted }.forEach { item ->
+                                item.dueAtMillis?.let { ReminderAlarmScheduler.schedule(context, item.id, it) }
+                            }
+                            backupMessage = if (hindi) itemsToRestore.size.toString() + " रिमाइंडर रीस्टोर हुए।"
+                                else "Restored " + itemsToRestore.size + " reminders successfully."
+                        }.onFailure {
+                            backupMessage = (if (hindi) "रीस्टोर विफल: " else "Restore failed: ") + (it.message ?: "Database error")
+                        }
+                    }
+                }) { Text(if (hindi) "रीस्टोर करें" else "Restore") }
+            },
+            dismissButton = {
+                TextButton(onClick = { restorePreview = null }) { Text(if (hindi) "रद्द करें" else "Cancel") }
+            }
+        )
+    }
     if (showAdd) {
         AddReminderDialog(
             hindi = hindi,
