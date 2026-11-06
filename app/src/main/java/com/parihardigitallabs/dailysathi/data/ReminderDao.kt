@@ -5,6 +5,7 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Update
+import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -26,4 +27,16 @@ interface ReminderDao {
 
     @Delete
     suspend fun delete(reminder: Reminder)
+
+    @Query("DELETE FROM reminders")
+    suspend fun deleteAll()
+
+    @Insert
+    suspend fun insertAll(reminders: List<Reminder>)
+
+    @Transaction
+    suspend fun replaceAll(reminders: List<Reminder>) {
+        deleteAll()
+        if (reminders.isNotEmpty()) insertAll(reminders)
+    }
 }
