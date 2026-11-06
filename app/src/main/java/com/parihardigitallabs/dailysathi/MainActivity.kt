@@ -183,7 +183,7 @@ private fun DailySathiApp(database: DailySathiDatabase) {
             hindi = hindi,
             initialReminder = item,
             onDismiss = { editingReminder = null },
-            onSave = { title, note, dueAtMillis ->
+            onSave = { title, note, dueAtMillis, recurrence ->
                 scope.launch {
                     val updated = item.copy(title = title, note = note, dueAtMillis = dueAtMillis, recurrence = recurrence)
                     database.reminderDao().update(updated)
