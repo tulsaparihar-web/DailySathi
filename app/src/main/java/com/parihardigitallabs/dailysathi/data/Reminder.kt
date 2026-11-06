@@ -12,5 +12,8 @@ data class Reminder(
     val category: String = "Personal",
     val isCompleted: Boolean = false,
     val createdAtMillis: Long = System.currentTimeMillis(),
-    val recurrence: String = "NONE"
+    val recurrence: String = "NONE",
+    val providerName: String = "",
+    val location: String = "",
+    val preparationNotes: String = ""
 )
