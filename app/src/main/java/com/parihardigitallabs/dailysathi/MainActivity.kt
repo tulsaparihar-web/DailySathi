@@ -80,7 +80,9 @@ private fun DailySathiApp(database: DailySathiDatabase) {
     var tab by remember { mutableStateOf(MainTab.HOME) }
     var showAdd by remember { mutableStateOf(false) }
     var editingReminder by remember { mutableStateOf<Reminder?>(null) }
-    var hindi by remember { mutableStateOf(false) }
+    val preferences = remember { context.getSharedPreferences("daily_sathi_preferences", android.content.Context.MODE_PRIVATE) }
+    var hindi by remember { mutableStateOf(preferences.getBoolean("hindi_language", false)) }
+    LaunchedEffect(hindi) { preferences.edit().putBoolean("hindi_language", hindi).apply() }
 
     Scaffold(
         containerColor = SoftBg,
