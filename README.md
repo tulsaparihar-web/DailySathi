@@ -7,12 +7,19 @@ DailySathi is an India-focused personal and family utility application. It is be
 
 ## Product scope
 - Smart reminders and recurring schedules
-- Document and renewal tracker
-- Bills and EMI manager
-- Family task manager
+- Local Services Finder: electricians, plumbers, masons, carpenters, painters, cleaners, helpers, AC and appliance technicians, drivers and more
+- Family task manager and shared responsibilities
 - Calendar and important dates
 - Health and appointment reminders
-- Family profiles and backup
+- Family profiles and backup / restore
+- Hindi and English interface
+
+## Explicitly out of scope
+- Document management and renewal tracking
+- Bills and EMI management
+
+## Local Services Finder
+The initial release opens category-based nearby searches in Google Maps. Users can optionally enter an area or city, or leave it blank to search near their current location. Provider listings, availability, ratings and contact information are supplied by Maps and are not independently verified by DailySathi.
 
 ## Technology
 - Kotlin + Jetpack Compose + Material 3
@@ -25,9 +32,6 @@ DailySathi is an India-focused personal and family utility application. It is be
 Open this repository in Android Studio (JDK 17). Allow Gradle sync, install the Android SDK platform/build tools requested by the project, then run the `app` configuration.
 
 GitHub Actions builds a debug APK on pushes and pull requests. APKs are uploaded as workflow artifacts when the build succeeds.
-
-## Status
-Initial foundation only. Notification scheduling, calendar data, family profiles, renewal/bill modules, backup, ads and subscriptions are scheduled for subsequent milestones. Do not treat this development build as a production release.
 
 ## Brand
 - Parent brand: Parihar Digital Labs
