@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [Reminder::class], version = 3, exportSchema = false)
+@Database(entities = [Reminder::class], version = 4, exportSchema = false)
 abstract class DailySathiDatabase : RoomDatabase() {
     abstract fun reminderDao(): ReminderDao
 
@@ -22,6 +22,13 @@ abstract class DailySathiDatabase : RoomDatabase() {
                 database.execSQL("ALTER TABLE reminders ADD COLUMN recurrence TEXT NOT NULL DEFAULT 'NONE'")
             }
         }
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE reminders ADD COLUMN providerName TEXT NOT NULL DEFAULT ''")
+                database.execSQL("ALTER TABLE reminders ADD COLUMN location TEXT NOT NULL DEFAULT ''")
+                database.execSQL("ALTER TABLE reminders ADD COLUMN preparationNotes TEXT NOT NULL DEFAULT ''")
+            }
+        }
         @Volatile private var instance: DailySathiDatabase? = null
 
         fun getInstance(context: Context): DailySathiDatabase =
@@ -30,7 +37,7 @@ abstract class DailySathiDatabase : RoomDatabase() {
                     context.applicationContext,
                     DailySathiDatabase::class.java,
                     "dailysathi.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build().also { instance = it }
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build().also { instance = it }
             }
     }
 }
