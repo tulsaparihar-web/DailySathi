@@ -1,6 +1,8 @@
 package com.parihardigitallabs.dailysathi
 
 import android.os.Bundle
+import android.content.Intent
+import android.net.Uri
 import android.Manifest
 import android.content.pm.PackageManager
 import android.app.DatePickerDialog
@@ -66,7 +68,7 @@ private fun DailySathiTheme(content: @Composable () -> Unit) {
 }
 
 private enum class MainTab(val label: String) {
-    HOME("Home"), CALENDAR("Calendar"), TASKS("Tasks"), FAMILY("Family"), SETTINGS("Settings")
+    HOME("Home"), CALENDAR("Calendar"), TASKS("Tasks"), SERVICES("Services"), FAMILY("Family"), SETTINGS("Settings")
 }
 
 @Composable
@@ -98,6 +100,7 @@ private fun DailySathiApp(database: DailySathiDatabase) {
                         MainTab.HOME -> Icons.Default.Home
                         MainTab.CALENDAR -> Icons.Default.CalendarMonth
                         MainTab.TASKS -> Icons.Default.CheckCircle
+                        MainTab.SERVICES -> Icons.Default.Handyman
                         MainTab.FAMILY -> Icons.Default.People
                         MainTab.SETTINGS -> Icons.Default.Settings
                     }
@@ -145,6 +148,7 @@ private fun DailySathiApp(database: DailySathiDatabase) {
                 onDelete = { item -> scope.launch { database.reminderDao().delete(item); ReminderAlarmScheduler.cancel(context, item.id) } },
                 onEdit = { editingReminder = it }
             )
+            MainTab.SERVICES -> LocalServicesScreen(hindi, Modifier.padding(padding))
             MainTab.FAMILY -> PlaceholderScreen(
                 if (hindi) "परिवार" else "Family",
                 if (hindi) "परिवार प्रोफाइल अगले चरण में आएँगे।"
@@ -264,18 +268,13 @@ private fun HomeScreen(
                     QuickCard(if (hindi) "रिमाइंडर" else "Reminders",
                         if (hindi) "याद रखें" else "Stay on track",
                         Icons.Default.Notifications, DailyBlue, Modifier.weight(1f), onAdd)
-                    QuickCard(if (hindi) "बिल और EMI" else "Bills & EMI",
-                        if (hindi) "भुगतान की तारीखें" else "Due dates",
-                        Icons.Default.ReceiptLong, Teal, Modifier.weight(1f), onAdd)
+                    QuickCard(if (hindi) "स्थानीय सेवाएँ" else "Local Services",
+                        if (hindi) "कारीगर और मददगार खोजें" else "Find trusted local help",
+                        Icons.Default.Handyman, Teal, Modifier.weight(1f), { /* Opened from Services tab */ })
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    QuickCard(if (hindi) "नवीनीकरण" else "Renewals",
-                        if (hindi) "दस्तावेज़" else "Documents",
-                        Icons.Default.Description, Color(0xFFB97820), Modifier.weight(1f), onAdd)
-                    QuickCard(if (hindi) "परिवार के कार्य" else "Family tasks",
-                        if (hindi) "मिलकर व्यवस्थित" else "Organize together",
-                        Icons.Default.Groups, Color(0xFF7653A6), Modifier.weight(1f), onAdd)
-                }
+                Text(if (hindi) "इलेक्ट्रीशियन, प्लंबर, मिस्त्री, बढ़ई, सफाई सहायक और अन्य सेवाओं के लिए Services टैब खोलें।"
+                    else "Find electricians, plumbers, masons, carpenters, cleaners and more in the Services tab.",
+                    color = Slate.copy(alpha = .65f), fontSize = 12.sp)
             }
         }
         item { Text(if (hindi) "आपके रिमाइंडर" else "Your reminders",
@@ -493,6 +492,78 @@ private fun CalendarScreen(reminders: List<Reminder>, hindi: Boolean, modifier: 
 }
 
 @Composable
+private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
+    val context = LocalContext.current
+    var area by remember { mutableStateOf("") }
+    val categories = listOf(
+        Triple("Electrician", "इलेक्ट्रीशियन", Icons.Default.ElectricalServices),
+        Triple("Plumber", "प्लंबर", Icons.Default.Plumbing),
+        Triple("Mason", "राजमिस्त्री", Icons.Default.Construction),
+        Triple("Carpenter", "बढ़ई", Icons.Default.Carpenter),
+        Triple("Painter", "पेंटर", Icons.Default.FormatPaint),
+        Triple("House cleaner / Helper", "घरेलू सहायक", Icons.Default.CleaningServices),
+        Triple("AC repair", "AC रिपेयर", Icons.Default.AcUnit),
+        Triple("Appliance repair", "उपकरण मरम्मत", Icons.Default.HomeRepairService),
+        Triple("Driver", "ड्राइवर", Icons.Default.DirectionsCar)
+    )
+    Column(modifier.fillMaxSize().padding(18.dp)) {
+        Text(if (hindi) "स्थानीय सेवाएँ" else "Local Services",
+            fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Navy)
+        Text(if (hindi) "अपने आसपास काम के लिए सही व्यक्ति खोजें।" else "Find nearby professionals for everyday jobs.",
+            color = Slate.copy(alpha = .68f), fontSize = 13.sp)
+        Spacer(Modifier.height(14.dp))
+        OutlinedTextField(
+            value = area, onValueChange = { area = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text(if (hindi) "इलाका / शहर (वैकल्पिक)" else "Area / city (optional)") },
+            placeholder = { Text(if (hindi) "खाली छोड़ें और आसपास खोजें" else "Leave blank to search nearby") },
+            leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null) }
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(if (hindi) "सेवा चुनें" else "Choose a service",
+            color = Navy, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(8.dp))
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp),
+            contentPadding = PaddingValues(bottom = 20.dp)) {
+            items(categories) { category ->
+                Surface(
+                    onClick = {
+                        val searchText = buildString {
+                            append(category.first)
+                            append(" near ")
+                            append(area.ifBlank { "me" })
+                        }
+                        val url = "https://www.google.com/maps/search/?api=1&query=" + Uri.encode(searchText)
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                    },
+                    shape = RoundedCornerShape(16.dp), color = Color.White,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(Modifier.padding(horizontal = 15.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Surface(shape = RoundedCornerShape(12.dp), color = Teal.copy(alpha = .12f)) {
+                            Icon(category.third, contentDescription = null, tint = Teal,
+                                modifier = Modifier.padding(10.dp).size(23.dp))
+                        }
+                        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                            Text(if (hindi) category.second else category.first,
+                                color = Navy, fontWeight = FontWeight.SemiBold)
+                            Text(if (hindi) "नक्शे पर आसपास खोजें" else "Search nearby on Maps",
+                                color = Slate.copy(alpha = .6f), fontSize = 11.sp)
+                        }
+                        Icon(Icons.Default.OpenInNew, contentDescription = null, tint = DailyBlue)
+                    }
+                }
+            }
+        }
+        Text(if (hindi) "खोज Google Maps में खुलेगी। उपलब्धता, रेटिंग और संपर्क विवरण Maps पर निर्भर हैं।"
+            else "Search opens in Google Maps. Listings, ratings and contact details depend on Maps results.",
+            color = Slate.copy(alpha = .55f), fontSize = 11.sp)
+    }
+}
+
+@Composable
 private fun PlaceholderScreen(
     title: String, description: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier
@@ -596,6 +667,7 @@ private fun itemHindi(tab: MainTab): String = when (tab) {
     MainTab.HOME -> "होम"
     MainTab.CALENDAR -> "कैलेंडर"
     MainTab.TASKS -> "कार्य"
+    MainTab.SERVICES -> "सेवाएँ"
     MainTab.FAMILY -> "परिवार"
     MainTab.SETTINGS -> "सेटिंग्स"
 }
