@@ -1,6 +1,15 @@
 package com.parihardigitallabs.dailysathi
 
 import android.os.Bundle
+import android.Manifest
+import android.content.pm.PackageManager
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
+import android.os.Build
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -14,6 +23,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -61,6 +71,7 @@ private enum class MainTab(val label: String) {
 
 @Composable
 private fun DailySathiApp(database: DailySathiDatabase) {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val reminders by database.reminderDao().observeAll()
         .collectAsStateWithLifecycle(initialValue = emptyList())
@@ -106,6 +117,8 @@ private fun DailySathiApp(database: DailySathiDatabase) {
                 onToggle = { item ->
                     scope.launch {
                         database.reminderDao().update(item.copy(isCompleted = !item.isCompleted))
+                        if (item.isCompleted) item.dueAtMillis?.let { ReminderAlarmScheduler.schedule(context, item.id, it) }
+                        else ReminderAlarmScheduler.cancel(context, item.id)
                     }
                 }
             )
@@ -122,7 +135,7 @@ private fun DailySathiApp(database: DailySathiDatabase) {
                         database.reminderDao().update(item.copy(isCompleted = !item.isCompleted))
                     }
                 },
-                onDelete = { item -> scope.launch { database.reminderDao().delete(item) } }
+                onDelete = { item -> scope.launch { database.reminderDao().delete(item); ReminderAlarmScheduler.cancel(context, item.id) } }
             )
             MainTab.FAMILY -> PlaceholderScreen(
                 if (hindi) "परिवार" else "Family",
@@ -138,9 +151,13 @@ private fun DailySathiApp(database: DailySathiDatabase) {
         AddReminderDialog(
             hindi = hindi,
             onDismiss = { showAdd = false },
-            onSave = { title, note ->
+            onSave = { title, note, dueAtMillis ->
                 scope.launch {
-                    database.reminderDao().insert(Reminder(title = title, note = note))
+                    val id = database.reminderDao().insert(Reminder(title = title, note = note, dueAtMillis = dueAtMillis))
+                    dueAtMillis?.let { ReminderAlarmScheduler.schedule(context, id, it) }
+                    if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                        (context as? ComponentActivity)?.requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 501)
+                    }
                     showAdd = false
                 }
             }
@@ -400,10 +417,23 @@ private fun SettingsScreen(hindi: Boolean, onLanguageChange: (Boolean) -> Unit, 
 
 @Composable
 private fun AddReminderDialog(
-    hindi: Boolean, onDismiss: () -> Unit, onSave: (String, String) -> Unit
+    hindi: Boolean, onDismiss: () -> Unit, onSave: (String, String, Long?) -> Unit
 ) {
+    val context = LocalContext.current
     var title by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
+    var dueAtMillis by remember { mutableStateOf<Long?>(null) }
+    val dateFormatter = remember { SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()) }
+    fun chooseDateTime() {
+        val calendar = Calendar.getInstance().apply { add(Calendar.HOUR_OF_DAY, 1); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0) }
+        DatePickerDialog(context, { _, year, month, day ->
+            calendar.set(Calendar.YEAR, year); calendar.set(Calendar.MONTH, month); calendar.set(Calendar.DAY_OF_MONTH, day)
+            TimePickerDialog(context, { _, hour, minute ->
+                calendar.set(Calendar.HOUR_OF_DAY, hour); calendar.set(Calendar.MINUTE, minute)
+                dueAtMillis = calendar.timeInMillis
+            }, calendar.get(Calendar.HOUR_OF_DAY), calendar.get(Calendar.MINUTE), false).show()
+        }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH)).show()
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (hindi) "नया रिमाइंडर" else "New reminder") },
@@ -419,11 +449,22 @@ private fun AddReminderDialog(
                     label = { Text(if (hindi) "विवरण (वैकल्पिक)" else "Note (optional)") },
                     minLines = 2
                 )
+                OutlinedButton(onClick = { chooseDateTime() }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.Schedule, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(dueAtMillis?.let { dateFormatter.format(Date(it)) }
+                        ?: if (hindi) "तारीख और समय चुनें (वैकल्पिक)" else "Add date & time (optional)")
+                }
+                if (dueAtMillis != null) {
+                    TextButton(onClick = { dueAtMillis = null }) {
+                        Text(if (hindi) "तारीख हटाएँ" else "Remove date")
+                    }
+                }
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { if (title.isNotBlank()) onSave(title.trim(), note.trim()) },
+                onClick = { if (title.isNotBlank()) onSave(title.trim(), note.trim(), dueAtMillis) },
                 enabled = title.isNotBlank()
             ) { Text(if (hindi) "सहेजें" else "Save") }
         },
