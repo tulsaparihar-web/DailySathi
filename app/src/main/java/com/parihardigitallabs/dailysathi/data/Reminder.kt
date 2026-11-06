@@ -11,5 +11,6 @@ data class Reminder(
     val dueAtMillis: Long? = null,
     val category: String = "Personal",
     val isCompleted: Boolean = false,
-    val createdAtMillis: Long = System.currentTimeMillis()
+    val createdAtMillis: Long = System.currentTimeMillis(),
+    val recurrence: String = "NONE"
 )
