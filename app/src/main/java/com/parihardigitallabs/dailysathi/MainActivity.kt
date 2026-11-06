@@ -209,8 +209,9 @@ private fun DailySathiApp(database: DailySathiDatabase) {
                     restorePreview = null
                     scope.launch {
                         runCatching {
-                            reminders.forEach { ReminderAlarmScheduler.cancel(context, it.id) }
+                            // Commit the database replacement first; if it fails, existing alarms remain intact.
                             database.reminderDao().replaceAll(itemsToRestore)
+                            reminders.forEach { ReminderAlarmScheduler.cancel(context, it.id) }
                             itemsToRestore.filter { !it.isCompleted }.forEach { item ->
                                 item.dueAtMillis?.let { ReminderAlarmScheduler.schedule(context, item.id, it) }
                             }
