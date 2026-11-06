@@ -166,9 +166,9 @@ private fun DailySathiApp(database: DailySathiDatabase) {
         AddReminderDialog(
             hindi = hindi,
             onDismiss = { showAdd = false },
-            onSave = { title, note, dueAtMillis, recurrence ->
+            onSave = { title, note, dueAtMillis, recurrence, category ->
                 scope.launch {
-                    val id = database.reminderDao().insert(Reminder(title = title, note = note, dueAtMillis = dueAtMillis, recurrence = recurrence))
+                    val id = database.reminderDao().insert(Reminder(title = title, note = note, dueAtMillis = dueAtMillis, recurrence = recurrence, category = category))
                     dueAtMillis?.let { ReminderAlarmScheduler.schedule(context, id, it) }
                     if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                         (context as? ComponentActivity)?.requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 501)
@@ -183,9 +183,9 @@ private fun DailySathiApp(database: DailySathiDatabase) {
             hindi = hindi,
             initialReminder = item,
             onDismiss = { editingReminder = null },
-            onSave = { title, note, dueAtMillis, recurrence ->
+            onSave = { title, note, dueAtMillis, recurrence, category ->
                 scope.launch {
-                    val updated = item.copy(title = title, note = note, dueAtMillis = dueAtMillis, recurrence = recurrence)
+                    val updated = item.copy(title = title, note = note, dueAtMillis = dueAtMillis, recurrence = recurrence, category = category)
                     database.reminderDao().update(updated)
                     ReminderAlarmScheduler.cancel(context, item.id)
                     if (!updated.isCompleted) dueAtMillis?.let { ReminderAlarmScheduler.schedule(context, item.id, it) }
@@ -610,13 +610,15 @@ private fun SettingsScreen(hindi: Boolean, onLanguageChange: (Boolean) -> Unit, 
 @Composable
 private fun AddReminderDialog(
     hindi: Boolean, initialReminder: Reminder? = null,
-    onDismiss: () -> Unit, onSave: (String, String, Long?, String) -> Unit
+    onDismiss: () -> Unit, onSave: (String, String, Long?, String, String) -> Unit
 ) {
     val context = LocalContext.current
     var title by remember { mutableStateOf(initialReminder?.title.orEmpty()) }
     var note by remember { mutableStateOf(initialReminder?.note.orEmpty()) }
     var dueAtMillis by remember { mutableStateOf(initialReminder?.dueAtMillis) }
     var recurrence by remember { mutableStateOf(initialReminder?.recurrence ?: "NONE") }
+    var category by remember { mutableStateOf(initialReminder?.category ?: "Personal") }
+    var categoryExpanded by remember { mutableStateOf(false) }
     var recurrenceExpanded by remember { mutableStateOf(false) }
     val dateFormatter = remember { SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()) }
     fun chooseDateTime() {
@@ -644,6 +646,29 @@ private fun AddReminderDialog(
                     label = { Text(if (hindi) "विवरण (वैकल्पिक)" else "Note (optional)") },
                     minLines = 2
                 )
+                Box {
+                    OutlinedButton(onClick = { categoryExpanded = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text((if (hindi) "श्रेणी: " else "Category: ") + when (category) {
+                            "Health" -> if (hindi) "स्वास्थ्य" else "Health"
+                            "Appointment" -> if (hindi) "अपॉइंटमेंट" else "Appointment"
+                            "Medication" -> if (hindi) "दवा" else "Medication"
+                            else -> if (hindi) "व्यक्तिगत" else "Personal"
+                        })
+                    }
+                    DropdownMenu(expanded = categoryExpanded, onDismissRequest = { categoryExpanded = false }) {
+                        listOf("Personal", "Health", "Appointment", "Medication").forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(when (option) {
+                                    "Health" -> if (hindi) "स्वास्थ्य" else "Health"
+                                    "Appointment" -> if (hindi) "अपॉइंटमेंट" else "Appointment"
+                                    "Medication" -> if (hindi) "दवा" else "Medication"
+                                    else -> if (hindi) "व्यक्तिगत" else "Personal"
+                                }) },
+                                onClick = { category = option; categoryExpanded = false }
+                            )
+                        }
+                    }
+                }
                 OutlinedButton(onClick = { chooseDateTime() }, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Default.Schedule, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
@@ -697,7 +722,7 @@ private fun AddReminderDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { if (title.isNotBlank()) onSave(title.trim(), note.trim(), dueAtMillis, if (dueAtMillis == null) "NONE" else recurrence) },
+                onClick = { if (title.isNotBlank()) onSave(title.trim(), note.trim(), dueAtMillis, if (dueAtMillis == null) "NONE" else recurrence, category) },
                 enabled = title.isNotBlank()
             ) { Text(if (hindi) "सहेजें" else "Save") }
         },
