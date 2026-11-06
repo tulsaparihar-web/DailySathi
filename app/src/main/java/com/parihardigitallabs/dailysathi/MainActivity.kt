@@ -436,6 +436,34 @@ private fun ReminderRow(reminder: Reminder, hindi: Boolean, onToggle: (Reminder)
 }
 
 @Composable
+private fun ReminderExtraDetails(reminder: Reminder, hindi: Boolean) {
+    val categoryLabel = when (reminder.category) {
+        "Health" -> if (hindi) "स्वास्थ्य" else "Health"
+        "Appointment" -> if (hindi) "अपॉइंटमेंट" else "Appointment"
+        "Medication" -> if (hindi) "दवा" else "Medication"
+        else -> if (hindi) "व्यक्तिगत" else "Personal"
+    }
+    if (reminder.category != "Personal" || reminder.providerName.isNotBlank() ||
+        reminder.location.isNotBlank() || reminder.preparationNotes.isNotBlank()) {
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(categoryLabel, color = Teal, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+            if (reminder.providerName.isNotBlank()) {
+                Text((if (hindi) "डॉक्टर / क्लिनिक / दवा: " else "Doctor / clinic / medicine: ") + reminder.providerName,
+                    color = Slate.copy(alpha = .72f), fontSize = 11.sp)
+            }
+            if (reminder.location.isNotBlank()) {
+                Text((if (hindi) "स्थान: " else "Location: ") + reminder.location,
+                    color = Slate.copy(alpha = .72f), fontSize = 11.sp)
+            }
+            if (reminder.preparationNotes.isNotBlank()) {
+                Text((if (hindi) "नोट: " else "Notes: ") + reminder.preparationNotes,
+                    color = Slate.copy(alpha = .72f), fontSize = 11.sp)
+            }
+        }
+    }
+}
+
+@Composable
 private fun TasksScreen(
     reminders: List<Reminder>, hindi: Boolean, modifier: Modifier,
     onToggle: (Reminder) -> Unit, onDelete: (Reminder) -> Unit, onEdit: (Reminder) -> Unit
@@ -456,11 +484,12 @@ private fun TasksScreen(
                         Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
                             Checkbox(reminder.isCompleted, { onToggle(reminder) })
                             Column(Modifier.weight(1f)) {
-                                Text(reminder.title, fontWeight = FontWeight.Medium)
+                                Text(reminder.title, fontWeight = FontWeight.Medium, color = Navy)
                                 reminder.dueAtMillis?.let {
                                     Text(SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()).format(Date(it)),
                                         fontSize = 11.sp, color = Slate.copy(alpha = .6f))
                                 }
+                                ReminderExtraDetails(reminder, hindi)
                             }
                             IconButton(onClick = { onEdit(reminder) }) {
                                 Icon(Icons.Default.Edit, contentDescription = "Edit", tint = DailyBlue)
@@ -539,6 +568,7 @@ private fun CalendarScreen(reminders: List<Reminder>, hindi: Boolean, modifier: 
                                 Text(item.title, fontWeight = FontWeight.SemiBold, color = Navy)
                                 Text(SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date(item.dueAtMillis!!)),
                                     fontSize = 12.sp, color = Slate.copy(alpha = .65f))
+                                ReminderExtraDetails(item, hindi)
                             }
                         }
                     }
