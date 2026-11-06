@@ -122,11 +122,15 @@ private fun DailySathiApp(database: DailySathiDatabase) {
                     }
                 }
             )
-            MainTab.CALENDAR -> PlaceholderScreen(
-                if (hindi) "कैलेंडर" else "Calendar",
-                if (hindi) "महत्वपूर्ण तारीखें और रिमाइंडर यहाँ दिखाई देंगे।"
-                else "Your important dates and upcoming reminders will appear here.",
-                Icons.Default.CalendarMonth, Modifier.padding(padding)
+            MainTab.CALENDAR -> CalendarScreen(
+                reminders = reminders, hindi = hindi, modifier = Modifier.padding(padding),
+                onToggle = { item ->
+                    scope.launch {
+                        database.reminderDao().update(item.copy(isCompleted = !item.isCompleted))
+                        if (item.isCompleted) item.dueAtMillis?.let { ReminderAlarmScheduler.schedule(context, item.id, it) }
+                        else ReminderAlarmScheduler.cancel(context, item.id)
+                    }
+                }
             )
             MainTab.TASKS -> TasksScreen(
                 reminders, hindi, Modifier.padding(padding),
@@ -370,6 +374,90 @@ private fun TasksScreen(
                                 Icon(Icons.Default.DeleteOutline, contentDescription = "Delete", tint = Color.Gray)
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+@Composable
+private fun CalendarScreen(reminders: List<Reminder>, hindi: Boolean, modifier: Modifier) {
+    val formatter = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
+    val todayStart = remember {
+        Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+    }
+    val dated = reminders.filter { it.dueAtMillis != null }
+        .sortedBy { it.dueAtMillis }
+        .groupBy { formatter.format(Date(it.dueAtMillis!!)) }
+    val undated = reminders.filter { it.dueAtMillis == null }
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 20.dp, bottom = 100.dp),
+        verticalArrangement = Arrangement.spacedBy(9.dp)
+    ) {
+        item {
+            Text(if (hindi) "कैलेंडर" else "Calendar", fontSize = 26.sp,
+                fontWeight = FontWeight.Bold, color = Navy)
+            Text(if (hindi) "आपकी तारीख़ वाले रिमाइंडर" else "Your scheduled reminders",
+                color = Slate.copy(alpha = .65f))
+        }
+        if (dated.isEmpty()) {
+            item {
+                Surface(color = Color.White, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.EventAvailable, contentDescription = null,
+                            tint = DailyBlue, modifier = Modifier.size(38.dp))
+                        Text(if (hindi) "अभी कोई तारीख़ तय नहीं" else "No scheduled reminders yet",
+                            fontWeight = FontWeight.SemiBold)
+                        Text(if (hindi) "रिमाइंडर में तारीख़ और समय जोड़ें।" else "Add a date and time to any reminder.",
+                            color = Slate.copy(alpha = .65f), fontSize = 12.sp)
+                    }
+                }
+            }
+        } else {
+            dated.forEach { (day, dayItems) ->
+                item(key = "heading-" + day) {
+                    val firstDue = dayItems.firstNotNullOfOrNull { it.dueAtMillis } ?: 0L
+                    val dayStart = Calendar.getInstance().apply {
+                        timeInMillis = firstDue
+                        set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+                        set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+                    }.timeInMillis
+                    val heading = when {
+                        dayStart < todayStart -> if (hindi) "बीती तारीख़ · " + day else "Overdue · " + day
+                        dayStart == todayStart -> if (hindi) "आज · " + day else "Today · " + day
+                        else -> day
+                    }
+                    Text(heading, color = if (dayStart < todayStart) Color(0xFFB45309) else Navy,
+                        fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
+                }
+                items(dayItems, key = { "calendar-" + it.id }) { item ->
+                    Surface(color = Color.White, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+                        Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(item.isCompleted, { onToggle(item) })
+                            Column(Modifier.weight(1f)) {
+                                Text(item.title, fontWeight = FontWeight.SemiBold, color = Navy)
+                                Text(SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date(item.dueAtMillis!!)),
+                                    fontSize = 12.sp, color = Slate.copy(alpha = .65f))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (undated.isNotEmpty()) {
+            item { Text(if (hindi) "बिना तारीख़ वाले कार्य" else "Unscheduled tasks",
+                color = Navy, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 10.dp)) }
+            items(undated, key = { "unscheduled-" + it.id }) { item ->
+                Surface(color = Color.White, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+                    Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(item.isCompleted, { onToggle(item) })
+                        Text(item.title, Modifier.weight(1f), fontWeight = FontWeight.Medium)
                     }
                 }
             }
