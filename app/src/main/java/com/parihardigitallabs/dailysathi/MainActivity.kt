@@ -3,6 +3,11 @@ package com.parihardigitallabs.dailysathi
 import android.os.Bundle
 import android.content.Intent
 import android.net.Uri
+import android.content.ContentValues
+import org.json.JSONArray
+import org.json.JSONObject
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import android.Manifest
 import android.content.pm.PackageManager
 import android.app.DatePickerDialog
@@ -151,7 +156,24 @@ private fun DailySathiApp(database: DailySathiDatabase) {
                 onEdit = { editingReminder = it }
             )
             MainTab.SERVICES -> LocalServicesScreen(hindi, Modifier.padding(padding))
-            MainTab.SETTINGS -> SettingsScreen(hindi, { hindi = it }, Modifier.padding(padding))
+            MainTab.SETTINGS -> SettingsScreen(
+                hindi, { hindi = it }, Modifier.padding(padding),
+                onExport = {
+                    val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                        addCategory(Intent.CATEGORY_OPENABLE)
+                        type = "application/json"
+                        putExtra(Intent.EXTRA_TITLE, "DailySathi-Backup.json")
+                    }
+                    context.startActivity(intent)
+                },
+                onImport = {
+                    val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                        addCategory(Intent.CATEGORY_OPENABLE)
+                        type = "application/json"
+                    }
+                    context.startActivity(intent)
+                }
+            )
         }
     }
 
@@ -580,7 +602,10 @@ private fun PlaceholderScreen(
 }
 
 @Composable
-private fun SettingsScreen(hindi: Boolean, onLanguageChange: (Boolean) -> Unit, modifier: Modifier) {
+private fun SettingsScreen(
+    hindi: Boolean, onLanguageChange: (Boolean) -> Unit, modifier: Modifier,
+    onExport: () -> Unit, onImport: () -> Unit
+) {
     Column(modifier.fillMaxSize().padding(22.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Text(if (hindi) "सेटिंग्स" else "Settings",
             fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Navy)
@@ -588,10 +613,31 @@ private fun SettingsScreen(hindi: Boolean, onLanguageChange: (Boolean) -> Unit, 
             Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(if (hindi) "ऐप की भाषा" else "App language", fontWeight = FontWeight.SemiBold)
-                    Text(if (hindi) "हिंदी" else "English",
-                        color = Slate.copy(alpha = .6f), fontSize = 12.sp)
+                    Text(if (hindi) "हिंदी" else "English", color = Slate.copy(alpha = .6f), fontSize = 12.sp)
                 }
                 Switch(checked = hindi, onCheckedChange = onLanguageChange)
+            }
+        }
+        Surface(color = Color.White, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(if (hindi) "बैकअप और रीस्टोर" else "Backup & Restore",
+                    fontWeight = FontWeight.SemiBold, color = Navy)
+                Text(if (hindi) "अपने रिमाइंडर और अपॉइंटमेंट का JSON बैकअप सुरक्षित रखें।"
+                    else "Save your reminders and appointments to a JSON backup file.",
+                    color = Slate.copy(alpha = .65f), fontSize = 12.sp)
+                OutlinedButton(onClick = onExport, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.Download, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (hindi) "बैकअप एक्सपोर्ट करें" else "Export backup")
+                }
+                OutlinedButton(onClick = onImport, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.Upload, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (hindi) "बैकअप इम्पोर्ट करें" else "Restore from backup")
+                }
+                Text(if (hindi) "रीस्टोर करने पर मौजूदा रिमाइंडर बदल जाएंगे।"
+                    else "Restoring a backup replaces the reminders currently on this device.",
+                    color = Color(0xFFB45309), fontSize = 11.sp)
             }
         }
         Text("Parihar Digital Labs", fontWeight = FontWeight.Bold, color = Navy)
