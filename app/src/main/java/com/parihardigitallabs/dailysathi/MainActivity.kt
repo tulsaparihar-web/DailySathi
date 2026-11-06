@@ -118,6 +118,7 @@ private fun DailySathiApp(database: DailySathiDatabase) {
             MainTab.HOME -> HomeScreen(
                 reminders, hindi, Modifier.padding(padding),
                 onAdd = { showAdd = true },
+                onServices = { tab = MainTab.SERVICES },
                 onToggle = { item ->
                     scope.launch {
                         database.reminderDao().update(item.copy(isCompleted = !item.isCompleted))
@@ -199,6 +200,7 @@ private fun HomeScreen(
     hindi: Boolean,
     modifier: Modifier,
     onAdd: () -> Unit,
+    onServices: () -> Unit,
     onToggle: (Reminder) -> Unit
 ) {
     val pending = reminders.count { !it.isCompleted }
@@ -270,7 +272,7 @@ private fun HomeScreen(
                         Icons.Default.Notifications, DailyBlue, Modifier.weight(1f), onAdd)
                     QuickCard(if (hindi) "स्थानीय सेवाएँ" else "Local Services",
                         if (hindi) "कारीगर और मददगार खोजें" else "Find trusted local help",
-                        Icons.Default.Handyman, Teal, Modifier.weight(1f), { /* Opened from Services tab */ })
+                        Icons.Default.Handyman, Teal, Modifier.weight(1f), onServices)
                 }
                 Text(if (hindi) "इलेक्ट्रीशियन, प्लंबर, मिस्त्री, बढ़ई, सफाई सहायक और अन्य सेवाओं के लिए Services टैब खोलें।"
                     else "Find electricians, plumbers, masons, carpenters, cleaners and more in the Services tab.",
@@ -499,7 +501,7 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
         Triple("Electrician", "इलेक्ट्रीशियन", Icons.Default.ElectricalServices),
         Triple("Plumber", "प्लंबर", Icons.Default.Plumbing),
         Triple("Mason", "राजमिस्त्री", Icons.Default.Construction),
-        Triple("Carpenter", "बढ़ई", Icons.Default.Carpenter),
+        Triple("Carpenter", "बढ़ई", Icons.Default.Build),
         Triple("Painter", "पेंटर", Icons.Default.FormatPaint),
         Triple("House cleaner / Helper", "घरेलू सहायक", Icons.Default.CleaningServices),
         Triple("AC repair", "AC रिपेयर", Icons.Default.AcUnit),
