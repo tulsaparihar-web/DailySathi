@@ -3,7 +3,7 @@
 **A product of Parihar Digital Labs**  
 *Technology that makes life easier.*
 
-DailySathi is an India-focused personal and family utility application. It is being developed Android-first with Kotlin, Jetpack Compose and an offline-first data layer.
+DailySathi is an India-focused personal productivity and everyday utility application. It is being developed Android-first with Kotlin, Jetpack Compose and an offline-first data layer.
 
 ## Product scope
 - Smart reminders and recurring schedules
