@@ -410,7 +410,7 @@ private fun TasksScreen(
 
 
 @Composable
-private fun CalendarScreen(reminders: List<Reminder>, hindi: Boolean, modifier: Modifier) {
+private fun CalendarScreen(reminders: List<Reminder>, hindi: Boolean, modifier: Modifier, onToggle: (Reminder) -> Unit) {
     val formatter = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
     val todayStart = remember {
         Calendar.getInstance().apply {
