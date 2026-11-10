@@ -1,0 +1,92 @@
+package com.parihardigitallabs.dailysathi
+
+import com.parihardigitallabs.dailysathi.data.Reminder
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.json.JSONObject
+
+class ReminderBackupTest {
+    @Test
+    fun currentBackupRoundTripsRemindersAndLocalProviders() {
+        val reminder = Reminder(
+            id = 12L,
+            title = "Doctor appointment",
+            note = "Bring reports",
+            dueAtMillis = 1_800_000_000_000L,
+            category = "Health",
+            recurrence = "MONTHLY",
+            providerName = "City Clinic",
+            location = "Jaipur",
+            preparationNotes = "Arrive early",
+            recurrenceDayOfMonth = 31
+        )
+        val provider = LocalServiceProvider(
+            id = 34L,
+            name = "Ramesh Electrician",
+            service = "Electrician",
+            phone = "+919876543210",
+            area = "Jaipur",
+            details = "Available evenings",
+            isFavorite = true,
+            userRating = 5,
+            feedback = "Prompt and professional"
+        )
+
+        val restored = ReminderBackup.decode(ReminderBackup.encode(listOf(reminder), listOf(provider)))
+
+        assertEquals(3, JSONObject(ReminderBackup.encode(listOf(reminder), listOf(provider))).getInt("formatVersion"))
+        assertEquals(listOf(reminder), restored.reminders)
+        assertEquals(listOf(provider), restored.providers)
+        assertTrue(restored.includesProviders)
+    }
+
+    @Test
+    fun versionTwoBackupRemainsCompatibleWithoutMonthlyAnchor() {
+        val legacy = JSONObject()
+            .put("app", "DailySathi")
+            .put("formatVersion", 2)
+            .put("reminders", org.json.JSONArray().put(
+                JSONObject()
+                    .put("id", 7L)
+                    .put("title", "Monthly reminder")
+                    .put("dueAtMillis", 1_800_000_000_000L)
+                    .put("recurrence", "MONTHLY")
+            ))
+            .put("providers", org.json.JSONArray())
+
+        val restored = ReminderBackup.decode(legacy.toString())
+
+        assertEquals(1, restored.reminders.size)
+        assertEquals(0, restored.reminders.single().recurrenceDayOfMonth)
+        assertTrue(restored.includesProviders)
+        assertTrue(restored.providers.isEmpty())
+    }
+
+    @Test
+    fun versionOneBackupDoesNotOverwriteExistingProviderDirectory() {
+        val legacy = JSONObject()
+            .put("app", "DailySathi")
+            .put("formatVersion", 1)
+            .put("reminders", org.json.JSONArray())
+
+        val restored = ReminderBackup.decode(legacy.toString())
+
+        assertFalse(restored.includesProviders)
+        assertTrue(restored.providers.isEmpty())
+    }
+
+    @Test
+    fun duplicateReminderIdsAreRejected() {
+        val item = JSONObject().put("id", 1L).put("title", "Duplicate")
+        val invalid = JSONObject()
+            .put("app", "DailySathi")
+            .put("formatVersion", 3)
+            .put("reminders", org.json.JSONArray().put(item).put(JSONObject(item.toString())))
+
+        val failure = runCatching { ReminderBackup.decode(invalid.toString()) }.exceptionOrNull()
+
+        assertTrue(failure is IllegalArgumentException)
+    }
+}
