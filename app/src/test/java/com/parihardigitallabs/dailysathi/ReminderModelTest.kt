@@ -79,6 +79,42 @@ class ReminderModelTest {
     }
 
     @Test
+    fun monthlyRecurrenceClampsJanuary31ToFebruaryEndWithoutDrifting() {
+        val start = Calendar.getInstance().apply {
+            set(2026, Calendar.JANUARY, 31, 9, 15, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        val february = Calendar.getInstance().apply {
+            set(2026, Calendar.FEBRUARY, 28, 9, 15, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+        val first = nextOccurrence(start, "MONTHLY", start, 31)
+        assertEquals(february, first)
+
+        val march = Calendar.getInstance().apply {
+            set(2026, Calendar.MARCH, 31, 9, 15, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        val second = nextOccurrence(first, "MONTHLY", february, 31)
+        assertEquals(march, second)
+    }
+
+    @Test
+    fun monthlyRecurrenceUsesLeapDayWhenAnchorIs29() {
+        val start = Calendar.getInstance().apply {
+            set(2024, Calendar.JANUARY, 29, 8, 0, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        val expected = Calendar.getInstance().apply {
+            set(2024, Calendar.FEBRUARY, 29, 8, 0, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+        assertEquals(expected, nextOccurrence(start, "MONTHLY", start, 29))
+    }
+
+    @Test
     fun nonRecurringReminderHasNoNextOccurrence() {
         assertNull(nextOccurrence(1_000L, "NONE", 2_000L))
     }
