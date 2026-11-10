@@ -323,9 +323,7 @@ private fun HomeScreen(
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(if (hindi) "नमस्ते!" else "Hello there!", color = Color.White.copy(alpha = .8f))
                     Text(
-                        if (hindi) "आज की छोटी बातें,
-कल की बड़ी राहत।" else "Make room for what
-matters today.",
+                        if (hindi) "आज की छोटी बातें,\nकल की बड़ी राहत।" else "Make room for what\nmatters today.",
                         color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.Bold, lineHeight = 29.sp
                     )
                     Text(
