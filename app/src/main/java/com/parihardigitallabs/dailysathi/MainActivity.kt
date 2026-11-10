@@ -591,10 +591,34 @@ private fun CalendarScreen(reminders: List<Reminder>, hindi: Boolean, modifier: 
     }
 }
 
+private data class LocalServiceProvider(
+    val id: Long,
+    val name: String,
+    val service: String,
+    val phone: String,
+    val area: String,
+    val details: String
+)
+
 @Composable
 private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
     val context = LocalContext.current
+    val preferences = remember { context.getSharedPreferences("daily_sathi_services", android.content.Context.MODE_PRIVATE) }
     var area by remember { mutableStateOf("") }
+    var selectedMode by remember { mutableStateOf("MAPS") }
+    var showAddProvider by remember { mutableStateOf(false) }
+    var providers by remember {
+        mutableStateOf(runCatching {
+            val saved = org.json.JSONArray(preferences.getString("providers", "[]") ?: "[]")
+            (0 until saved.length()).map { index ->
+                val item = saved.getJSONObject(index)
+                LocalServiceProvider(
+                    item.getLong("id"), item.getString("name"), item.getString("service"),
+                    item.getString("phone"), item.optString("area"), item.optString("details")
+                )
+            }
+        }.getOrDefault(emptyList()))
+    }
     val categories = listOf(
         Triple("Electrician", "इलेक्ट्रीशियन", Icons.Default.ElectricalServices),
         Triple("Plumber", "प्लंबर", Icons.Default.Plumbing),
@@ -606,61 +630,221 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
         Triple("Appliance repair", "उपकरण मरम्मत", Icons.Default.HomeRepairService),
         Triple("Driver", "ड्राइवर", Icons.Default.DirectionsCar)
     )
+    fun saveProviders(items: List<LocalServiceProvider>) {
+        providers = items
+        val json = org.json.JSONArray()
+        items.forEach { provider ->
+            json.put(org.json.JSONObject()
+                .put("id", provider.id).put("name", provider.name)
+                .put("service", provider.service).put("phone", provider.phone)
+                .put("area", provider.area).put("details", provider.details))
+        }
+        preferences.edit().putString("providers", json.toString()).apply()
+    }
     Column(modifier.fillMaxSize().padding(18.dp)) {
         Text(if (hindi) "स्थानीय सेवाएँ" else "Local Services",
             fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Navy)
-        Text(if (hindi) "अपने आसपास काम के लिए सही व्यक्ति खोजें।" else "Find nearby professionals for everyday jobs.",
+        Text(if (hindi) "मैप्स पर खोजें या अपनी स्थानीय सेवा सूची बनाएँ।" else "Search on Maps or build your own local provider list.",
             color = Slate.copy(alpha = .68f), fontSize = 13.sp)
         Spacer(Modifier.height(14.dp))
-        OutlinedTextField(
-            value = area, onValueChange = { area = it },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            label = { Text(if (hindi) "इलाका / शहर (वैकल्पिक)" else "Area / city (optional)") },
-            placeholder = { Text(if (hindi) "खाली छोड़ें और आसपास खोजें" else "Leave blank to search nearby") },
-            leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null) }
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(if (hindi) "सेवा चुनें" else "Choose a service",
-            color = Navy, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(8.dp))
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp),
-            contentPadding = PaddingValues(bottom = 20.dp)) {
-            items(categories) { category ->
-                Surface(
-                    onClick = {
-                        val searchText = buildString {
-                            append(category.first)
-                            append(" near ")
-                            append(area.ifBlank { "me" })
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(selected = selectedMode == "MAPS", onClick = { selectedMode = "MAPS" },
+                label = { Text(if (hindi) "मैप्स पर खोजें" else "Search Maps") },
+                leadingIcon = { Icon(Icons.Default.Map, contentDescription = null) })
+            FilterChip(selected = selectedMode == "DIRECTORY", onClick = { selectedMode = "DIRECTORY" },
+                label = { Text(if (hindi) "प्रदाता डायरेक्टरी" else "Provider Directory") },
+                leadingIcon = { Icon(Icons.Default.People, contentDescription = null) })
+        }
+        if (selectedMode == "MAPS") {
+            OutlinedTextField(
+                value = area, onValueChange = { area = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text(if (hindi) "इलाका / शहर (वैकल्पिक)" else "Area / city (optional)") },
+                placeholder = { Text(if (hindi) "खाली छोड़ें और आसपास खोजें" else "Leave blank to search nearby") },
+                leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null) }
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(if (hindi) "सेवा चुनें" else "Choose a service",
+                color = Navy, fontWeight = FontWeight.SemiBold)
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp),
+                contentPadding = PaddingValues(bottom = 20.dp)) {
+                items(categories) { category ->
+                    Surface(
+                        onClick = {
+                            val searchText = category.first + " near " + area.ifBlank { "me" }
+                            val url = "https://www.google.com/maps/search/?api=1&query=" + Uri.encode(searchText)
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                        },
+                        shape = RoundedCornerShape(16.dp), color = Color.White,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(Modifier.padding(horizontal = 15.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            Surface(shape = RoundedCornerShape(12.dp), color = Teal.copy(alpha = .12f)) {
+                                Icon(category.third, contentDescription = null, tint = Teal,
+                                    modifier = Modifier.padding(10.dp).size(23.dp))
+                            }
+                            Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                                Text(if (hindi) category.second else category.first,
+                                    color = Navy, fontWeight = FontWeight.SemiBold)
+                                Text(if (hindi) "नक्शे पर आसपास खोजें" else "Search nearby on Maps",
+                                    color = Slate.copy(alpha = .6f), fontSize = 11.sp)
+                            }
+                            Icon(Icons.Default.OpenInNew, contentDescription = null, tint = DailyBlue)
                         }
-                        val url = "https://www.google.com/maps/search/?api=1&query=" + Uri.encode(searchText)
-                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                    },
-                    shape = RoundedCornerShape(16.dp), color = Color.White,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(Modifier.padding(horizontal = 15.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically) {
-                        Surface(shape = RoundedCornerShape(12.dp), color = Teal.copy(alpha = .12f)) {
-                            Icon(category.third, contentDescription = null, tint = Teal,
-                                modifier = Modifier.padding(10.dp).size(23.dp))
+                    }
+                }
+                item {
+                    Text(if (hindi) "खोज Google Maps में खुलेगी। लिस्टिंग और रेटिंग Maps पर निर्भर हैं।"
+                        else "Search opens in Google Maps. Listings and ratings are provided by Maps.",
+                        color = Slate.copy(alpha = .55f), fontSize = 11.sp)
+                }
+            }
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(if (hindi) "आपकी सेवा सूची" else "Your provider directory",
+                        color = Navy, fontWeight = FontWeight.SemiBold)
+                    Text(if (hindi) "इस डिवाइस पर सेव प्रदाता" else "Providers saved on this device",
+                        color = Slate.copy(alpha = .6f), fontSize = 11.sp)
+                }
+                Button(onClick = { showAddProvider = true }) {
+                    Icon(Icons.Default.Add, contentDescription = null)
+                    Text(if (hindi) "जोड़ें" else "Add")
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            if (providers.isEmpty()) {
+                Surface(color = Color.White, shape = RoundedCornerShape(18.dp),
+                    modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(Icons.Default.Handyman, contentDescription = null, tint = Teal,
+                            modifier = Modifier.size(40.dp))
+                        Text(if (hindi) "अभी कोई सेवा प्रदाता नहीं" else "No providers added yet",
+                            color = Navy, fontWeight = FontWeight.SemiBold)
+                        Text(if (hindi) "स्थानीय सेवा प्रदाता की जानकारी जोड़कर अपनी सूची बनाएँ।"
+                            else "Add local professionals to create a handy contact list.",
+                            color = Slate.copy(alpha = .65f), fontSize = 12.sp)
+                        OutlinedButton(onClick = { showAddProvider = true }) {
+                            Text(if (hindi) "पहला प्रदाता जोड़ें" else "Add your first provider")
                         }
-                        Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                            Text(if (hindi) category.second else category.first,
-                                color = Navy, fontWeight = FontWeight.SemiBold)
-                            Text(if (hindi) "नक्शे पर आसपास खोजें" else "Search nearby on Maps",
-                                color = Slate.copy(alpha = .6f), fontSize = 11.sp)
+                    }
+                }
+            } else {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp),
+                    contentPadding = PaddingValues(bottom = 24.dp)) {
+                    items(providers, key = { it.id }) { provider ->
+                        Surface(color = Color.White, shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(provider.name, color = Navy, fontWeight = FontWeight.Bold)
+                                        Text(provider.service, color = Teal, fontSize = 12.sp)
+                                    }
+                                    IconButton(onClick = { saveProviders(providers.filterNot { it.id == provider.id }) }) {
+                                        Icon(Icons.Default.DeleteOutline, contentDescription = if (hindi) "हटाएँ" else "Delete",
+                                            tint = Color(0xFFB45309))
+                                    }
+                                }
+                                if (provider.area.isNotBlank()) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.LocationOn, contentDescription = null,
+                                            tint = Slate.copy(alpha = .6f), modifier = Modifier.size(15.dp))
+                                        Text(provider.area, color = Slate.copy(alpha = .7f), fontSize = 12.sp)
+                                    }
+                                }
+                                if (provider.details.isNotBlank()) Text(provider.details, color = Slate, fontSize = 12.sp)
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    OutlinedButton(onClick = {
+                                        context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + provider.phone)))
+                                    }, modifier = Modifier.weight(1f)) {
+                                        Icon(Icons.Default.Call, contentDescription = null)
+                                        Spacer(Modifier.width(5.dp))
+                                        Text(if (hindi) "कॉल" else "Call")
+                                    }
+                                    OutlinedButton(onClick = {
+                                        val digits = provider.phone.filter { it.isDigit() }
+                                        val url = "https://wa.me/$digits"
+                                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                    }, modifier = Modifier.weight(1f)) {
+                                        Icon(Icons.Default.Chat, contentDescription = null)
+                                        Spacer(Modifier.width(5.dp))
+                                        Text("WhatsApp")
+                                    }
+                                }
+                            }
                         }
-                        Icon(Icons.Default.OpenInNew, contentDescription = null, tint = DailyBlue)
                     }
                 }
             }
+            Text(if (hindi) "ध्यान दें: ये प्रविष्टियाँ केवल इसी डिवाइस पर सेव होती हैं; अभी सार्वजनिक ऑनलाइन डायरेक्टरी नहीं है।"
+                else "Note: These entries are stored on this device only; a shared online directory is not connected yet.",
+                color = Slate.copy(alpha = .55f), fontSize = 11.sp)
         }
-        Text(if (hindi) "खोज Google Maps में खुलेगी। उपलब्धता, रेटिंग और संपर्क विवरण Maps पर निर्भर हैं।"
-            else "Search opens in Google Maps. Listings, ratings and contact details depend on Maps results.",
-            color = Slate.copy(alpha = .55f), fontSize = 11.sp)
     }
+    if (showAddProvider) {
+        AddLocalProviderDialog(hindi = hindi, categories = categories.map { it.first }, onDismiss = { showAddProvider = false }) { name, service, phone, providerArea, details ->
+            saveProviders(providers + LocalServiceProvider(
+                id = System.currentTimeMillis(), name = name, service = service,
+                phone = phone, area = providerArea, details = details
+            ))
+            showAddProvider = false
+        }
+    }
+}
+
+@Composable
+private fun AddLocalProviderDialog(
+    hindi: Boolean, categories: List<String>, onDismiss: () -> Unit,
+    onSave: (String, String, String, String, String) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var service by remember { mutableStateOf(categories.first()) }
+    var phone by remember { mutableStateOf("") }
+    var area by remember { mutableStateOf("") }
+    var details by remember { mutableStateOf("") }
+    var categoryExpanded by remember { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (hindi) "सेवा प्रदाता जोड़ें" else "Add a service provider") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(value = name, onValueChange = { name = it },
+                    label = { Text(if (hindi) "नाम" else "Provider name") }, singleLine = true)
+                Box {
+                    OutlinedButton(onClick = { categoryExpanded = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text(service)
+                    }
+                    DropdownMenu(expanded = categoryExpanded, onDismissRequest = { categoryExpanded = false }) {
+                        categories.forEach { item ->
+                            DropdownMenuItem(text = { Text(item) }, onClick = {
+                                service = item
+                                categoryExpanded = false
+                            })
+                        }
+                    }
+                }
+                OutlinedTextField(value = phone, onValueChange = { phone = it.filter { ch -> ch.isDigit() || ch == '+' }.take(16) },
+                    label = { Text(if (hindi) "मोबाइल नंबर" else "Phone number") }, singleLine = true)
+                OutlinedTextField(value = area, onValueChange = { area = it },
+                    label = { Text(if (hindi) "इलाका / शहर" else "Area / city") }, singleLine = true)
+                OutlinedTextField(value = details, onValueChange = { details = it },
+                    label = { Text(if (hindi) "विवरण (वैकल्पिक)" else "Details (optional)") }, minLines = 2)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(name.trim(), service, phone.trim(), area.trim(), details.trim()) },
+                enabled = name.isNotBlank() && phone.count { it.isDigit() } >= 10) {
+                Text(if (hindi) "सेव करें" else "Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(if (hindi) "रद्द करें" else "Cancel") }
+        }
+    )
 }
 
 @Composable
