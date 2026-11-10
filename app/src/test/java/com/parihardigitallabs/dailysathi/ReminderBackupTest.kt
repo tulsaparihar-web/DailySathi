@@ -89,4 +89,73 @@ class ReminderBackupTest {
 
         assertTrue(failure is IllegalArgumentException)
     }
+    @Test
+    fun unsupportedRecurrenceIsRejected() {
+        val invalid = JSONObject()
+            .put("app", "DailySathi")
+            .put("formatVersion", 3)
+            .put("reminders", org.json.JSONArray().put(
+                JSONObject()
+                    .put("id", 2L)
+                    .put("title", "Bad recurrence")
+                    .put("dueAtMillis", 1_800_000_000_000L)
+                    .put("recurrence", "YEARLY")
+            ))
+
+        val failure = runCatching { ReminderBackup.decode(invalid.toString()) }.exceptionOrNull()
+
+        assertTrue(failure is IllegalArgumentException)
+    }
+
+    @Test
+    fun recurringReminderWithoutDueDateIsRejected() {
+        val invalid = JSONObject()
+            .put("app", "DailySathi")
+            .put("formatVersion", 3)
+            .put("reminders", org.json.JSONArray().put(
+                JSONObject()
+                    .put("id", 3L)
+                    .put("title", "Missing date")
+                    .put("recurrence", "WEEKLY")
+            ))
+
+        val failure = runCatching { ReminderBackup.decode(invalid.toString()) }.exceptionOrNull()
+
+        assertTrue(failure is IllegalArgumentException)
+    }
+
+    @Test
+    fun monthlyAnchorOnNonMonthlyReminderIsRejected() {
+        val invalid = JSONObject()
+            .put("app", "DailySathi")
+            .put("formatVersion", 3)
+            .put("reminders", org.json.JSONArray().put(
+                JSONObject()
+                    .put("id", 4L)
+                    .put("title", "Invalid anchor")
+                    .put("recurrenceDayOfMonth", 31)
+            ))
+
+        val failure = runCatching { ReminderBackup.decode(invalid.toString()) }.exceptionOrNull()
+
+        assertTrue(failure is IllegalArgumentException)
+    }
+
+    @Test
+    fun negativeDueDateIsRejected() {
+        val invalid = JSONObject()
+            .put("app", "DailySathi")
+            .put("formatVersion", 3)
+            .put("reminders", org.json.JSONArray().put(
+                JSONObject()
+                    .put("id", 5L)
+                    .put("title", "Invalid date")
+                    .put("dueAtMillis", -1L)
+            ))
+
+        val failure = runCatching { ReminderBackup.decode(invalid.toString()) }.exceptionOrNull()
+
+        assertTrue(failure is IllegalArgumentException)
+    }
+
 }
