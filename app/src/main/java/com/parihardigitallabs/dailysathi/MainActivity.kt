@@ -18,6 +18,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -609,6 +611,8 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
     var providerCategory by remember { mutableStateOf("All") }
     var selectedMode by remember { mutableStateOf("MAPS") }
     var showAddProvider by remember { mutableStateOf(false) }
+    var providerBeingEdited by remember { mutableStateOf<LocalServiceProvider?>(null) }
+    var directoryMessage by remember { mutableStateOf<String?>(null) }
     var showMarketplaceRegister by remember { mutableStateOf(false) }
     var pendingMarketplace by remember { mutableStateOf<List<LocalServiceProvider>>(emptyList()) }
     val marketplaceApi = remember { MarketplaceApi() }
@@ -726,10 +730,13 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
                     Text(if (hindi) "इस डिवाइस पर सेव प्रदाता" else "Providers saved on this device",
                         color = Slate.copy(alpha = .6f), fontSize = 11.sp)
                 }
-                Button(onClick = { showAddProvider = true }) {
+                Button(onClick = { providerBeingEdited = null; showAddProvider = true }) {
                     Icon(Icons.Default.Add, contentDescription = null)
                     Text(if (hindi) "जोड़ें" else "Add")
                 }
+            }
+            directoryMessage?.let {
+                Text(it, color = Color(0xFF9A6700), fontSize = 12.sp)
             }
             Spacer(Modifier.height(8.dp))
             OutlinedTextField(
@@ -759,7 +766,7 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
                         Text(if (hindi) "स्थानीय सेवा प्रदाता की जानकारी जोड़कर अपनी सूची बनाएँ।"
                             else "Add local professionals to create a handy contact list.",
                             color = Slate.copy(alpha = .65f), fontSize = 12.sp)
-                        OutlinedButton(onClick = { showAddProvider = true }) {
+                        OutlinedButton(onClick = { providerBeingEdited = null; showAddProvider = true }) {
                             Text(if (hindi) "पहला प्रदाता जोड़ें" else "Add your first provider")
                         }
                     }
@@ -779,7 +786,17 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
                                         Text(provider.name, color = Navy, fontWeight = FontWeight.Bold)
                                         Text(provider.service, color = Teal, fontSize = 12.sp)
                                     }
-                                    IconButton(onClick = { saveProviders(providers.filterNot { it.id == provider.id }) }) {
+                                    IconButton(onClick = {
+                                        providerBeingEdited = provider
+                                        showAddProvider = true
+                                    }) {
+                                        Icon(Icons.Default.Edit, contentDescription = if (hindi) "बदलें" else "Edit",
+                                            tint = DailyBlue)
+                                    }
+                                    IconButton(onClick = {
+                                        saveProviders(providers.filterNot { it.id == provider.id })
+                                        directoryMessage = if (hindi) "प्रदाता हटा दिया गया।" else "Provider deleted."
+                                    }) {
                                         Icon(Icons.Default.DeleteOutline, contentDescription = if (hindi) "हटाएँ" else "Delete",
                                             tint = Color(0xFFB45309))
                                     }
@@ -956,12 +973,38 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
         }
     }
     if (showAddProvider) {
-        AddLocalProviderDialog(hindi = hindi, categories = categories.map { it.first }, onDismiss = { showAddProvider = false }) { name, service, phone, providerArea, details ->
-            saveProviders(providers + LocalServiceProvider(
-                id = System.currentTimeMillis(), name = name, service = service,
-                phone = phone, area = providerArea, details = details
-            ))
-            showAddProvider = false
+        AddLocalProviderDialog(
+            hindi = hindi,
+            categories = categories.map { it.first },
+            initialProvider = providerBeingEdited,
+            onDismiss = { showAddProvider = false; providerBeingEdited = null }
+        ) { name, service, phone, providerArea, details ->
+            val duplicate = providers.any {
+                it.id != providerBeingEdited?.id &&
+                    it.phone.filter(Char::isDigit) == phone.filter(Char::isDigit) &&
+                    it.name.trim().equals(name.trim(), ignoreCase = true)
+            }
+            if (duplicate) {
+                directoryMessage = if (hindi) "यह प्रदाता पहले से सूची में है।" else "This provider already exists in your directory."
+            } else {
+                val updated = if (providerBeingEdited == null) {
+                    providers + LocalServiceProvider(
+                        id = System.currentTimeMillis(), name = name, service = service,
+                        phone = phone, area = providerArea, details = details
+                    )
+                } else {
+                    providers.map { current ->
+                        if (current.id == providerBeingEdited!!.id) current.copy(
+                            name = name, service = service, phone = phone,
+                            area = providerArea, details = details
+                        ) else current
+                    }
+                }
+                saveProviders(updated)
+                directoryMessage = if (hindi) "प्रदाता जानकारी सेव हो गई।" else "Provider details saved."
+                showAddProvider = false
+                providerBeingEdited = null
+            }
         }
     }
 }
@@ -1065,18 +1108,24 @@ private fun MarketplaceRegistrationDialog(
 
 @Composable
 private fun AddLocalProviderDialog(
-    hindi: Boolean, categories: List<String>, onDismiss: () -> Unit,
+    hindi: Boolean, categories: List<String>,
+    initialProvider: LocalServiceProvider? = null,
+    onDismiss: () -> Unit,
     onSave: (String, String, String, String, String) -> Unit
 ) {
-    var name by remember { mutableStateOf("") }
-    var service by remember { mutableStateOf(categories.first()) }
-    var phone by remember { mutableStateOf("") }
-    var area by remember { mutableStateOf("") }
-    var details by remember { mutableStateOf("") }
+    var name by remember(initialProvider?.id) { mutableStateOf(initialProvider?.name.orEmpty()) }
+    var service by remember(initialProvider?.id) { mutableStateOf(initialProvider?.service ?: categories.first()) }
+    var phone by remember(initialProvider?.id) { mutableStateOf(initialProvider?.phone.orEmpty()) }
+    var area by remember(initialProvider?.id) { mutableStateOf(initialProvider?.area.orEmpty()) }
+    var details by remember(initialProvider?.id) { mutableStateOf(initialProvider?.details.orEmpty()) }
     var categoryExpanded by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (hindi) "सेवा प्रदाता जोड़ें" else "Add a service provider") },
+        title = { Text(if (initialProvider != null) {
+            if (hindi) "प्रदाता जानकारी बदलें" else "Edit provider"
+        } else {
+            if (hindi) "सेवा प्रदाता जोड़ें" else "Add a service provider"
+        }) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = name, onValueChange = { name = it },
@@ -1105,7 +1154,7 @@ private fun AddLocalProviderDialog(
         confirmButton = {
             TextButton(onClick = { onSave(name.trim(), service, phone.trim(), area.trim(), details.trim()) },
                 enabled = name.isNotBlank() && phone.count { it.isDigit() } >= 10) {
-                Text(if (hindi) "सेव करें" else "Save")
+                Text(if (initialProvider != null) { if (hindi) "अपडेट करें" else "Update" } else { if (hindi) "सेव करें" else "Save" })
             }
         },
         dismissButton = {
