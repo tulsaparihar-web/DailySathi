@@ -611,10 +611,11 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
     var showAddProvider by remember { mutableStateOf(false) }
     var showMarketplaceRegister by remember { mutableStateOf(false) }
     var pendingMarketplace by remember { mutableStateOf<List<LocalServiceProvider>>(emptyList()) }
-    var demoPhone by remember { mutableStateOf("+919999999999") }
-    var demoOtp by remember { mutableStateOf("123456") }
-    var demoSignedIn by remember { mutableStateOf(false) }
-    var demoLoginError by remember { mutableStateOf(false) }
+    val marketplaceApi = remember { MarketplaceApi() }
+    val marketplaceScope = rememberCoroutineScope()
+    var cloudProviders by remember { mutableStateOf<List<MarketplaceProvider>>(emptyList()) }
+    var marketplaceLoading by remember { mutableStateOf(false) }
+    var marketplaceMessage by remember { mutableStateOf<String?>(null) }
     var providers by remember {
         mutableStateOf(runCatching {
             val saved = org.json.JSONArray(preferences.getString("providers", "[]") ?: "[]")
@@ -659,52 +660,6 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
             fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Navy)
         Text(if (hindi) "मैप्स पर खोजें या अपनी स्थानीय सेवा सूची बनाएँ।" else "Search on Maps or build your own local provider list.",
             color = Slate.copy(alpha = .68f), fontSize = 13.sp)
-        if (BuildConfig.DEBUG) {
-            Spacer(Modifier.height(10.dp))
-            Surface(color = Color.White, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(if (hindi) "डेवलपमेंट लॉगिन" else "Development login preview",
-                            color = Navy, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                        Surface(color = Color(0xFFFFF3CD), shape = RoundedCornerShape(20.dp)) {
-                            Text("DEBUG ONLY", color = Color(0xFF8A5A00), fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
-                        }
-                    }
-                    Text(
-                        if (hindi) "यह अस्थायी डेमो है। इससे Supabase में लॉगिन या ऑनलाइन डेटा एक्सेस नहीं होता।"
-                        else "Temporary preview only. This does not authenticate with Supabase or access cloud data.",
-                        color = Slate.copy(alpha = .68f), fontSize = 11.sp
-                    )
-                    if (demoSignedIn) {
-                        Text(if (hindi) "डेमो लॉगिन सक्रिय: $demoPhone" else "Demo login active: $demoPhone",
-                            color = Teal, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                        OutlinedButton(onClick = { demoSignedIn = false; demoLoginError = false },
-                            modifier = Modifier.fillMaxWidth()) {
-                            Text(if (hindi) "डेमो लॉगआउट" else "Sign out of demo")
-                        }
-                    } else {
-                        OutlinedTextField(value = demoPhone, onValueChange = { demoPhone = it },
-                            modifier = Modifier.fillMaxWidth(), singleLine = true,
-                            label = { Text(if (hindi) "टेस्ट मोबाइल नंबर" else "Test mobile number") })
-                        OutlinedTextField(value = demoOtp, onValueChange = { demoOtp = it.filter(Char::isDigit).take(6) },
-                            modifier = Modifier.fillMaxWidth(), singleLine = true,
-                            label = { Text(if (hindi) "फिक्स्ड OTP (123456)" else "Fixed OTP (123456)") })
-                        if (demoLoginError) {
-                            Text(if (hindi) "गलत नंबर या OTP। डेमो OTP 123456 है।"
-                                else "Invalid demo number or OTP. Use +919999999999 and 123456.",
-                                color = Color(0xFFB42318), fontSize = 11.sp)
-                        }
-                        Button(onClick = {
-                            demoLoginError = !(demoPhone.filter(Char::isDigit) == "919999999999" && demoOtp == "123456")
-                            if (!demoLoginError) demoSignedIn = true
-                        }, modifier = Modifier.fillMaxWidth()) {
-                            Text(if (hindi) "डेमो लॉगिन करें" else "Continue with demo login")
-                        }
-                    }
-                }
-            }
-        }
         Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(selected = selectedMode == "MAPS", onClick = { selectedMode = "MAPS" },
@@ -868,82 +823,109 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                     Text(if (hindi) "DailySathi सेवा मार्केटप्लेस" else "DailySathi Service Marketplace",
                         color = Navy, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                    Text(if (hindi) "लॉगिन और प्रदाता पंजीकरण का विकास पूर्वावलोकन। वास्तविक OTP/SMS और क्लाउड लिस्टिंग अभी सक्रिय नहीं हैं।"
-                        else "Development preview for login and provider onboarding. Real OTP/SMS and cloud listings are not active yet.",
+                    Text(if (hindi) "ग्राहक बिना लॉगिन सेवाएँ खोज सकते हैं। सेवा प्रदाता निःशुल्क पंजीकरण कर सकते हैं।"
+                        else "Customers can browse without login. Service providers can register for free.",
                         color = Slate.copy(alpha = .68f), fontSize = 12.sp)
-                    if (!BuildConfig.DEBUG) {
-                        Text(if (hindi) "मार्केटप्लेस जल्द उपलब्ध होगा।" else "Marketplace will be available soon.",
-                            color = Teal, fontWeight = FontWeight.SemiBold)
-                    } else if (!demoSignedIn) {
-                        Text(if (hindi) "आगे बढ़ने के लिए ऊपर Development login preview में टेस्ट लॉगिन करें।"
-                            else "Use the Development login preview above to sign in before trying provider registration.",
-                            color = Slate, fontSize = 13.sp)
-                    } else {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = Teal)
-                            Text(if (hindi) "डेमो उपयोगकर्ता के रूप में लॉगिन" else "Signed in as a demo user",
-                                color = Teal, fontWeight = FontWeight.SemiBold)
-                        }
-                        Button(onClick = { showMarketplaceRegister = true }, modifier = Modifier.fillMaxWidth()) {
-                            Icon(Icons.Default.AddBusiness, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text(if (hindi) "सेवा प्रदाता के रूप में पंजीकरण" else "Register as a service provider")
-                        }
-                        Text(if (hindi) "आपके डेमो आवेदन" else "Your demo applications",
-                            color = Navy, fontWeight = FontWeight.SemiBold)
-                        if (pendingMarketplace.isEmpty()) {
-                            Text(if (hindi) "अभी कोई आवेदन नहीं। पंजीकरण करके शुरुआत करें।"
-                                else "No applications yet. Register a provider to get started.",
-                                color = Slate.copy(alpha = .65f), fontSize = 12.sp)
-                        } else {
-                            pendingMarketplace.forEach { item ->
-                                Surface(color = SoftBg, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
-                                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                        Text(item.name, color = Navy, fontWeight = FontWeight.SemiBold)
-                                        Text(item.service + " • " + item.area, color = Slate, fontSize = 12.sp)
-                                        Text(if (hindi) "स्थिति: समीक्षा हेतु लंबित (केवल डेमो)" else "Status: Pending review (demo only)",
-                                            color = Color(0xFF9A6700), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                                    }
+                    Button(onClick = { showMarketplaceRegister = true }, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Default.AddBusiness, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (hindi) "निःशुल्क सेवा प्रदाता पंजीकरण" else "Register as a service provider — Free")
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            if (!marketplaceApi.isConfigured) {
+                                marketplaceMessage = if (hindi) "Supabase कॉन्फ़िगरेशन नहीं मिला। local.properties में Project URL और Publishable key जोड़ें।"
+                                    else "Supabase is not configured. Add the Project URL and Publishable key to local.properties."
+                            } else {
+                                marketplaceLoading = true
+                                marketplaceScope.launch {
+                                    runCatching { marketplaceApi.listApprovedProviders(null, providerCategory, area, providerQuery) }
+                                        .onSuccess { cloudProviders = it; marketplaceMessage = if (it.isEmpty()) {
+                                            if (hindi) "अभी कोई स्वीकृत प्रदाता नहीं मिला।" else "No approved providers found yet."
+                                        } else null }
+                                        .onFailure { marketplaceMessage = it.message ?: "Unable to load listings." }
+                                    marketplaceLoading = false
+                                }
+                            }
+                        }, modifier = Modifier.fillMaxWidth(), enabled = !marketplaceLoading
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (marketplaceLoading) (if (hindi) "लोड हो रहा है..." else "Loading...")
+                            else if (hindi) "स्वीकृत प्रदाता खोजें" else "Find approved providers")
+                    }
+                    marketplaceMessage?.let { Text(it, color = Color(0xFF9A6700), fontSize = 12.sp) }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            Text(if (hindi) "स्वीकृत सेवा प्रदाता" else "Approved service providers",
+                color = Navy, fontWeight = FontWeight.SemiBold)
+            OutlinedTextField(value = area, onValueChange = { area = it },
+                modifier = Modifier.fillMaxWidth(), singleLine = true,
+                label = { Text(if (hindi) "शहर / इलाका" else "City / area") })
+            OutlinedTextField(value = providerQuery, onValueChange = { providerQuery = it },
+                modifier = Modifier.fillMaxWidth(), singleLine = true,
+                label = { Text(if (hindi) "सेवा या नाम खोजें" else "Search service or name") })
+            if (cloudProviders.isEmpty()) {
+                Text(if (hindi) "स्वीकृत लिस्टिंग देखने के लिए ऊपर खोजें।" else "Tap Find approved providers to load public listings.",
+                    color = Slate.copy(alpha = .65f), fontSize = 12.sp)
+            } else {
+                cloudProviders.forEach { item ->
+                    Surface(color = Color.White, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(item.businessName, color = Navy, fontWeight = FontWeight.SemiBold)
+                            Text(item.category + " • " + item.area + ", " + item.city, color = Teal, fontSize = 12.sp)
+                            if (item.description.isNotBlank()) Text(item.description, color = Slate, fontSize = 12.sp)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(onClick = {
+                                    context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + item.phone)))
+                                }, modifier = Modifier.weight(1f)) {
+                                    Icon(Icons.Default.Call, contentDescription = null)
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(if (hindi) "कॉल" else "Call")
+                                }
+                                OutlinedButton(onClick = {
+                                    val digits = item.phone.filter { it.isDigit() }
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$digits")))
+                                }, modifier = Modifier.weight(1f)) {
+                                    Icon(Icons.Default.Chat, contentDescription = null)
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("WhatsApp")
                                 }
                             }
                         }
                     }
                 }
             }
-            Spacer(Modifier.height(12.dp))
-            Text(if (hindi) "पूर्वावलोकन डायरेक्टरी" else "Preview directory",
-                color = Navy, fontWeight = FontWeight.SemiBold)
-            OutlinedTextField(value = providerQuery, onValueChange = { providerQuery = it },
-                modifier = Modifier.fillMaxWidth(), singleLine = true,
-                label = { Text(if (hindi) "नाम, सेवा या इलाका खोजें" else "Search name, service or area") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) })
-            Text(if (hindi) "यह डिवाइस पर सेव की गई निजी सूची है, सार्वजनिक अनुमोदित क्लाउड लिस्टिंग नहीं।"
-                else "This is the on-device directory preview, not a public approved cloud listing.",
+            Text(if (hindi) "सिर्फ स्वीकृत प्रदाता सार्वजनिक रूप से दिखाई देंगे।" else "Only approved providers are shown publicly.",
                 color = Slate.copy(alpha = .55f), fontSize = 11.sp)
-            val previewMatches = filteredProviders
-            if (previewMatches.isEmpty()) {
-                Text(if (hindi) "पूर्वावलोकन सूची खाली है।" else "No preview listings available.",
-                    color = Slate.copy(alpha = .65f), fontSize = 12.sp)
-            } else {
-                previewMatches.forEach { item ->
-                    Surface(color = Color.White, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(12.dp)) {
-                            Text(item.name, color = Navy, fontWeight = FontWeight.SemiBold)
-                            Text(item.service + " • " + item.area, color = Slate, fontSize = 12.sp)
-                        }
-                    }
-                }
-            }
         }
     }
     if (showMarketplaceRegister) {
         AddLocalProviderDialog(hindi = hindi, categories = categories.map { it.first },
             onDismiss = { showMarketplaceRegister = false }) { name, service, phone, providerArea, details ->
-            pendingMarketplace = pendingMarketplace + LocalServiceProvider(
-                id = System.currentTimeMillis(), name = name, service = service,
-                phone = phone, area = providerArea, details = details
-            )
             showMarketplaceRegister = false
+            if (!marketplaceApi.isConfigured) {
+                marketplaceMessage = if (hindi) "Supabase कॉन्फ़िगरेशन नहीं मिला। Project URL और Publishable key सेट करें।"
+                    else "Supabase is not configured. Set the Project URL and Publishable key first."
+            } else {
+                marketplaceLoading = true
+                marketplaceScope.launch {
+                    runCatching {
+                        marketplaceApi.submitProvider(
+                            businessName = name, category = service, contactName = name,
+                            phone = phone, city = providerArea, area = providerArea,
+                            description = details
+                        )
+                    }.onSuccess {
+                        marketplaceMessage = if (hindi) "आपका आवेदन समीक्षा के लिए भेज दिया गया है। स्वीकृति के बाद लिस्टिंग दिखाई देगी।"
+                            else "Your application was submitted for review. It will appear after approval."
+                    }.onFailure {
+                        marketplaceMessage = it.message ?: "Unable to submit provider application."
+                    }
+                    marketplaceLoading = false
+                }
+            }
         }
     }
     if (showAddProvider) {
