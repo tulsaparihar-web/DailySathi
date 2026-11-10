@@ -826,20 +826,36 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
                     Text(if (hindi) "ग्राहक बिना लॉगिन सेवाएँ खोज सकते हैं। सेवा प्रदाता निःशुल्क पंजीकरण कर सकते हैं।"
                         else "Customers can browse without login. Service providers can register for free.",
                         color = Slate.copy(alpha = .68f), fontSize = 12.sp)
-                    Button(onClick = { showMarketplaceRegister = true }, modifier = Modifier.fillMaxWidth()) {
+                    Button(onClick = {
+                        if (marketplaceApi.isConfigured) {
+                            showMarketplaceRegister = true
+                        } else {
+                            selectedMode = "DIRECTORY"
+                            marketplaceMessage = if (hindi)
+                                "ऑनलाइन पंजीकरण बाद में उपलब्ध होगा। अभी प्रदाता को अपनी डिवाइस डायरेक्टरी में जोड़ें।"
+                            else
+                                "Online registration will be available later. For now, add the provider to your on-device directory."
+                        }
+                    }, modifier = Modifier.fillMaxWidth()) {
                         Icon(Icons.Default.AddBusiness, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text(if (hindi) "निःशुल्क सेवा प्रदाता पंजीकरण" else "Register as a service provider — Free")
+                        Text(if (hindi) "सेवा प्रदाता जोड़ें" else "Add a service provider")
                     }
                     OutlinedButton(
                         onClick = {
                             if (!marketplaceApi.isConfigured) {
-                                marketplaceMessage = if (hindi) "Supabase कॉन्फ़िगरेशन नहीं मिला। local.properties में Project URL और Publishable key जोड़ें।"
-                                    else "Supabase is not configured. Add the Project URL and Publishable key to local.properties."
+                                marketplaceMessage = if (hindi)
+                                    "ऑनलाइन डायरेक्टरी अभी सेटअप नहीं है। आप डिवाइस की स्थानीय प्रदाता सूची का उपयोग कर सकते हैं।"
+                                else
+                                    "The online directory is not connected yet. You can use the on-device provider directory meanwhile."
                             } else {
                                 marketplaceLoading = true
                                 marketplaceScope.launch {
-                                    runCatching { marketplaceApi.listApprovedProviders(null, providerCategory, area, providerQuery) }
+                                    runCatching {
+                                        marketplaceApi.listApprovedProviders(
+                                            null, providerCategory, area, "", providerQuery
+                                        )
+                                    }
                                         .onSuccess { cloudProviders = it; marketplaceMessage = if (it.isEmpty()) {
                                             if (hindi) "अभी कोई स्वीकृत प्रदाता नहीं मिला।" else "No approved providers found yet."
                                         } else null }
