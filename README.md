@@ -11,7 +11,7 @@ DailySathi is an India-focused personal productivity and everyday utility applic
 - Health, medication and appointment reminders with optional provider, location and preparation details
 - Hindi and English interface
 - Local Services Finder for electricians, plumbers, masons, carpenters, painters, cleaners, helpers, AC and appliance technicians, and drivers
-- JSON backup and restore for reminders and appointment data
+- JSON backup and restore for reminders, appointment details, and the local provider directory (including favorites, ratings and feedback)
 
 ## Explicitly out of scope
 - Family task manager, shared family responsibilities and family profiles
@@ -22,7 +22,7 @@ DailySathi is an India-focused personal productivity and everyday utility applic
 The initial release opens category-based nearby searches in Google Maps. Users can optionally enter an area or city, or leave it blank to search near their current location. Provider listings, availability, ratings and contact information are supplied by Maps and are not independently verified by DailySathi.
 
 ## Privacy and data handling
-Reminder and appointment records are stored locally on the device. Backup files are created only when the user exports them and are saved to a location selected by the user. Local Services searches are handed off to Google Maps. The app does not currently require a DailySathi account or a hosted application backend.
+Reminder, appointment and local provider records are stored on the device. Backup files (format version 3) are created only when the user exports them and are saved to a location selected by the user. Restore validates reminder schedules and record identifiers before applying imported data; version 1 and 2 backups remain supported. Local Services searches are handed off to Google Maps. The app does not currently require a DailySathi account or a hosted application backend.
 
 ## Technology
 - Kotlin + Jetpack Compose + Material 3
