@@ -600,7 +600,8 @@ private data class LocalServiceProvider(
     val service: String,
     val phone: String,
     val area: String,
-    val details: String
+    val details: String,
+    val isFavorite: Boolean = false
 )
 
 @Composable
@@ -610,6 +611,7 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
     var area by remember { mutableStateOf("") }
     var providerQuery by remember { mutableStateOf("") }
     var providerCategory by remember { mutableStateOf("All") }
+    var favoritesOnly by remember { mutableStateOf(false) }
     var selectedMode by remember { mutableStateOf("MAPS") }
     var showAddProvider by remember { mutableStateOf(false) }
     var providerBeingEdited by remember { mutableStateOf<LocalServiceProvider?>(null) }
@@ -630,7 +632,7 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
                 val item = saved.getJSONObject(index)
                 LocalServiceProvider(
                     item.getLong("id"), item.getString("name"), item.getString("service"),
-                    item.getString("phone"), item.optString("area"), item.optString("details")
+                    item.getString("phone"), item.optString("area"), item.optString("details"), item.optBoolean("isFavorite", false)
                 )
             }
         }.getOrDefault(emptyList()))
@@ -647,7 +649,8 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
         Triple("Driver", "ड्राइवर", Icons.Default.DirectionsCar)
     )
     val filteredProviders = providers.filter { provider ->
-        (providerCategory == "All" || provider.service.equals(providerCategory, ignoreCase = true)) &&
+        (!favoritesOnly || provider.isFavorite) &&
+            (providerCategory == "All" || provider.service.equals(providerCategory, ignoreCase = true)) &&
             (providerQuery.isBlank() || listOf(provider.name, provider.service, provider.area, provider.details)
                 .any { it.contains(providerQuery.trim(), ignoreCase = true) })
     }
@@ -658,7 +661,8 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
             json.put(org.json.JSONObject()
                 .put("id", provider.id).put("name", provider.name)
                 .put("service", provider.service).put("phone", provider.phone)
-                .put("area", provider.area).put("details", provider.details))
+                .put("area", provider.area).put("details", provider.details)
+                .put("isFavorite", provider.isFavorite))
         }
         preferences.edit().putString("providers", json.toString()).apply()
     }
@@ -753,6 +757,12 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
                 horizontalArrangement = Arrangement.spacedBy(7.dp)
             ) {
                 FilterChip(
+                    selected = favoritesOnly,
+                    onClick = { favoritesOnly = !favoritesOnly },
+                    label = { Text(if (hindi) "पसंदीदा" else "Favorites") },
+                    leadingIcon = { Icon(if (favoritesOnly) Icons.Default.Star else Icons.Default.StarBorder, contentDescription = null) }
+                )
+                FilterChip(
                     selected = providerCategory == "All",
                     onClick = { providerCategory = "All" },
                     label = { Text(if (hindi) "सभी सेवाएँ" else "All services") }
@@ -810,6 +820,14 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
                                     Column(Modifier.weight(1f).padding(start = 10.dp)) {
                                         Text(provider.name, color = Navy, fontWeight = FontWeight.Bold)
                                         Text(provider.service, color = Teal, fontSize = 12.sp)
+                                    }
+                                    IconButton(onClick = {
+                                        saveProviders(providers.map { if (it.id == provider.id) it.copy(isFavorite = !it.isFavorite) else it })
+                                        selectedProvider = selectedProvider?.takeIf { it.id != provider.id } ?: provider.copy(isFavorite = !provider.isFavorite)
+                                    }) {
+                                        Icon(if (provider.isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
+                                            contentDescription = if (hindi) "पसंदीदा बदलें" else "Toggle favorite",
+                                            tint = if (provider.isFavorite) Color(0xFFE0A000) else Slate.copy(alpha = .55f))
                                     }
                                     IconButton(onClick = {
                                         providerBeingEdited = provider
