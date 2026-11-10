@@ -12,7 +12,7 @@ internal data class DailySathiBackup(
 
 internal object ReminderBackup {
     fun encode(reminders: List<Reminder>, providers: List<LocalServiceProvider>): String {
-        val root = JSONObject().put("app", "DailySathi").put("formatVersion", 2)
+        val root = JSONObject().put("app", "DailySathi").put("formatVersion", 3)
         val items = JSONArray()
         reminders.forEach { reminder ->
             items.put(JSONObject()
@@ -26,7 +26,8 @@ internal object ReminderBackup {
                 .put("recurrence", reminder.recurrence)
                 .put("providerName", reminder.providerName)
                 .put("location", reminder.location)
-                .put("preparationNotes", reminder.preparationNotes))
+                .put("preparationNotes", reminder.preparationNotes)
+                .put("recurrenceDayOfMonth", reminder.recurrenceDayOfMonth))
         }
         root.put("reminders", items)
         root.put("providers", encodeProviders(providers))
@@ -54,7 +55,7 @@ internal object ReminderBackup {
         val root = JSONObject(json)
         require(root.optString("app") == "DailySathi") { "Not a DailySathi backup file" }
         val version = root.optInt("formatVersion", 0)
-        require(version in 1..2) { "Unsupported backup version" }
+        require(version in 1..3) { "Unsupported backup version" }
         val items = root.getJSONArray("reminders")
         val restored = (0 until items.length()).map { index ->
             val item = items.getJSONObject(index)
@@ -69,7 +70,8 @@ internal object ReminderBackup {
                 recurrence = item.optString("recurrence", "NONE"),
                 providerName = item.optString("providerName"),
                 location = item.optString("location"),
-                preparationNotes = item.optString("preparationNotes")
+                preparationNotes = item.optString("preparationNotes"),
+                recurrenceDayOfMonth = item.optInt("recurrenceDayOfMonth", 0).also { require(it in 0..31) }
             )
         }
         require(restored.map { it.id }.distinct().size == restored.size) { "Duplicate reminder IDs in backup" }
