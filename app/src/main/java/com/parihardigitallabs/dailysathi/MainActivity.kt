@@ -614,6 +614,7 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
     var showAddProvider by remember { mutableStateOf(false) }
     var providerBeingEdited by remember { mutableStateOf<LocalServiceProvider?>(null) }
     var providerPendingDelete by remember { mutableStateOf<LocalServiceProvider?>(null) }
+    var selectedProvider by remember { mutableStateOf<LocalServiceProvider?>(null) }
     var directoryMessage by remember { mutableStateOf<String?>(null) }
     var showMarketplaceRegister by remember { mutableStateOf(false) }
     var pendingMarketplace by remember { mutableStateOf<List<LocalServiceProvider>>(emptyList()) }
@@ -836,6 +837,11 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
                                     }
                                 }
                                 if (provider.details.isNotBlank()) Text(provider.details, color = Slate, fontSize = 12.sp)
+                                TextButton(onClick = { selectedProvider = provider }, modifier = Modifier.align(Alignment.Start)) {
+                                    Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(5.dp))
+                                    Text(if (hindi) "पूरी जानकारी देखें" else "View details")
+                                }
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     OutlinedButton(onClick = {
                                         context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + provider.phone)))
@@ -983,6 +989,86 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
             dismissButton = {
                 TextButton(onClick = { providerPendingDelete = null }) {
                     Text(if (hindi) "रद्द करें" else "Cancel")
+                }
+            }
+        )
+    }
+    selectedProvider?.let { provider ->
+        val shareText = buildString {
+            append(provider.name).append("\n")
+            append(if (hindi) "सेवा: " else "Service: ").append(provider.service).append("\n")
+            append(if (hindi) "मोबाइल: " else "Phone: ").append(provider.phone)
+            if (provider.area.isNotBlank()) append("\n").append(if (hindi) "इलाका: " else "Area: ").append(provider.area)
+            if (provider.details.isNotBlank()) append("\n").append(if (hindi) "विवरण: " else "Details: ").append(provider.details)
+            append("\n\n").append(if (hindi) "DailySathi से साझा किया गया" else "Shared via DailySathi")
+        }
+        AlertDialog(
+            onDismissRequest = { selectedProvider = null },
+            title = { Text(if (hindi) "सेवा प्रदाता की जानकारी" else "Provider details") },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(provider.name, color = Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text(provider.service, color = Teal, fontWeight = FontWeight.SemiBold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Phone, contentDescription = null, tint = DailyBlue)
+                        Text(provider.phone, modifier = Modifier.padding(start = 8.dp))
+                    }
+                    if (provider.area.isNotBlank()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.LocationOn, contentDescription = null, tint = DailyBlue)
+                            Text(provider.area, modifier = Modifier.padding(start = 8.dp))
+                        }
+                    }
+                    if (provider.details.isNotBlank()) {
+                        Text(if (hindi) "सेवा का विवरण" else "Service description",
+                            color = Navy, fontWeight = FontWeight.SemiBold)
+                        Text(provider.details, color = Slate)
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = {
+                            context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + provider.phone)))
+                        }, modifier = Modifier.weight(1f)) {
+                            Icon(Icons.Default.Call, contentDescription = null)
+                            Spacer(Modifier.width(5.dp))
+                            Text(if (hindi) "कॉल" else "Call")
+                        }
+                        OutlinedButton(onClick = {
+                            val digits = provider.phone.filter { it.isDigit() }
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$digits")))
+                        }, modifier = Modifier.weight(1f)) {
+                            Icon(Icons.Default.Chat, contentDescription = null)
+                            Spacer(Modifier.width(5.dp))
+                            Text("WhatsApp")
+                        }
+                    }
+                    OutlinedButton(onClick = {
+                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, shareText)
+                        }
+                        context.startActivity(Intent.createChooser(
+                            sendIntent, if (hindi) "प्रदाता की जानकारी साझा करें" else "Share provider"
+                        ))
+                    }, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Default.Share, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (hindi) "संपर्क साझा करें" else "Share contact")
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    selectedProvider = null
+                    providerBeingEdited = provider
+                    showAddProvider = true
+                }) { Text(if (hindi) "संपादित करें" else "Edit") }
+            },
+            dismissButton = {
+                TextButton(onClick = { selectedProvider = null }) {
+                    Text(if (hindi) "बंद करें" else "Close")
                 }
             }
         )
