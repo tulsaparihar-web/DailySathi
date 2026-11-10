@@ -59,7 +59,8 @@ class MarketplaceApi {
         session: MarketplaceSession?,
         category: String,
         city: String,
-        area: String
+        area: String,
+        searchText: String = ""
     ): List<MarketplaceProvider> = withContext(Dispatchers.IO) {
         val query = buildString {
             append("/rest/v1/service_providers?select=id,business_name,category,contact_name,phone,city,area,description")
@@ -67,6 +68,10 @@ class MarketplaceApi {
             if (category.isNotBlank() && category != "All") append("&category=eq.${encode(category)}")
             if (city.isNotBlank()) append("&city=ilike.*${encode(city)}*")
             if (area.isNotBlank()) append("&area=ilike.*${encode(area)}*")
+            if (searchText.isNotBlank()) {
+                val term = encode(searchText.trim())
+                append("&or=(business_name.ilike.*$term*,contact_name.ilike.*$term*,category.ilike.*$term*)")
+            }
             append("&order=created_at.desc&limit=100")
         }
         val result = request(path = query, method = "GET", accessToken = session?.accessToken)
