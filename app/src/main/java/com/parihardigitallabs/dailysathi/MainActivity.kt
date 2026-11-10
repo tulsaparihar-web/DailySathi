@@ -1042,18 +1042,12 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
         var ratingDraft by remember(provider.id) { mutableIntStateOf(provider.userRating) }
         var feedbackDraft by remember(provider.id) { mutableStateOf(provider.feedback) }
         val shareText = buildString {
-            append(provider.name).append("
-")
-            append(if (hindi) "सेवा: " else "Service: ").append(provider.service).append("
-")
+            append(provider.name).append("\n")
+            append(if (hindi) "सेवा: " else "Service: ").append(provider.service).append("\n")
             append(if (hindi) "मोबाइल: " else "Phone: ").append(provider.phone)
-            if (provider.area.isNotBlank()) append("
-").append(if (hindi) "इलाका: " else "Area: ").append(provider.area)
-            if (provider.details.isNotBlank()) append("
-").append(if (hindi) "विवरण: " else "Details: ").append(provider.details)
-            append("
-
-").append(if (hindi) "DailySathi से साझा किया गया" else "Shared via DailySathi")
+            if (provider.area.isNotBlank()) append("\n").append(if (hindi) "इलाका: " else "Area: ").append(provider.area)
+            if (provider.details.isNotBlank()) append("\n").append(if (hindi) "विवरण: " else "Details: ").append(provider.details)
+            append("\n\n").append(if (hindi) "DailySathi से साझा किया गया" else "Shared via DailySathi")
         }
         AlertDialog(
             onDismissRequest = { selectedProvider = null },
