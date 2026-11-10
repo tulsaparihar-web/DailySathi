@@ -276,7 +276,8 @@ private fun DailySathiApp(database: DailySathiDatabase) {
             onDismiss = { showAdd = false },
             onSave = { title, note, dueAtMillis, recurrence, category, providerName, location, preparationNotes ->
                 scope.launch {
-                    val id = database.reminderDao().insert(Reminder(title = title, note = note, dueAtMillis = dueAtMillis, recurrence = recurrence, category = category, providerName = providerName, location = location, preparationNotes = preparationNotes))
+                    val recurrenceDay = if (recurrence == "MONTHLY" && dueAtMillis != null) Calendar.getInstance().apply { timeInMillis = dueAtMillis }.get(Calendar.DAY_OF_MONTH) else 0
+                    val id = database.reminderDao().insert(Reminder(title = title, note = note, dueAtMillis = dueAtMillis, recurrence = recurrence, category = category, providerName = providerName, location = location, preparationNotes = preparationNotes, recurrenceDayOfMonth = recurrenceDay))
                     dueAtMillis?.let { ReminderAlarmScheduler.schedule(context, id, it) }
                     if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                         (context as? ComponentActivity)?.requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 501)
@@ -293,7 +294,8 @@ private fun DailySathiApp(database: DailySathiDatabase) {
             onDismiss = { editingReminder = null },
             onSave = { title, note, dueAtMillis, recurrence, category, providerName, location, preparationNotes ->
                 scope.launch {
-                    val updated = item.copy(title = title, note = note, dueAtMillis = dueAtMillis, recurrence = recurrence, category = category, providerName = providerName, location = location, preparationNotes = preparationNotes)
+                    val recurrenceDay = if (recurrence != "MONTHLY" || dueAtMillis == null) 0 else if (item.recurrence == "MONTHLY" && item.dueAtMillis == dueAtMillis && item.recurrenceDayOfMonth in 1..31) item.recurrenceDayOfMonth else Calendar.getInstance().apply { timeInMillis = dueAtMillis }.get(Calendar.DAY_OF_MONTH)
+                    val updated = item.copy(title = title, note = note, dueAtMillis = dueAtMillis, recurrence = recurrence, category = category, providerName = providerName, location = location, preparationNotes = preparationNotes, recurrenceDayOfMonth = recurrenceDay)
                     database.reminderDao().update(updated)
                     ReminderAlarmScheduler.cancel(context, item.id)
                     if (!updated.isCompleted) dueAtMillis?.let { ReminderAlarmScheduler.schedule(context, item.id, it) }
