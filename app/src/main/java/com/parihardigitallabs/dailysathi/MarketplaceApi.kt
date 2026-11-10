@@ -46,10 +46,11 @@ class MarketplaceApi {
             method = "POST",
             body = JSONObject().put("phone", phone).put("token", code).put("type", "sms")
         )
-        val user = result.getJSONObject("user")
+        val response = result as? JSONObject ?: error("Invalid OTP verification response")
+        val user = response.getJSONObject("user")
         MarketplaceSession(
-            accessToken = result.getString("access_token"),
-            refreshToken = result.optString("refresh_token"),
+            accessToken = response.getString("access_token"),
+            refreshToken = response.optString("refresh_token"),
             userId = user.getString("id")
         )
     }
