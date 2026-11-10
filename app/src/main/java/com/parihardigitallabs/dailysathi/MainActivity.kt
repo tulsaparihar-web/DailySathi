@@ -605,6 +605,8 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
     val context = LocalContext.current
     val preferences = remember { context.getSharedPreferences("daily_sathi_services", android.content.Context.MODE_PRIVATE) }
     var area by remember { mutableStateOf("") }
+    var providerQuery by remember { mutableStateOf("") }
+    var providerCategory by remember { mutableStateOf("All") }
     var selectedMode by remember { mutableStateOf("MAPS") }
     var showAddProvider by remember { mutableStateOf(false) }
     var providers by remember {
@@ -630,6 +632,11 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
         Triple("Appliance repair", "उपकरण मरम्मत", Icons.Default.HomeRepairService),
         Triple("Driver", "ड्राइवर", Icons.Default.DirectionsCar)
     )
+    val filteredProviders = providers.filter { provider ->
+        (providerCategory == "All" || provider.service.equals(providerCategory, ignoreCase = true)) &&
+            (providerQuery.isBlank() || listOf(provider.name, provider.service, provider.area, provider.details)
+                .any { it.contains(providerQuery.trim(), ignoreCase = true) })
+    }
     fun saveProviders(items: List<LocalServiceProvider>) {
         providers = items
         val json = org.json.JSONArray()
@@ -715,6 +722,21 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
                 }
             }
             Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = providerQuery, onValueChange = { providerQuery = it },
+                modifier = Modifier.fillMaxWidth(), singleLine = true,
+                label = { Text(if (hindi) "नाम, सेवा या इलाका खोजें" else "Search name, service or area") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                FilterChip(selected = providerCategory == "All", onClick = { providerCategory = "All" },
+                    label = { Text(if (hindi) "सभी" else "All") })
+                categories.take(3).forEach { category ->
+                    FilterChip(selected = providerCategory == category.first,
+                        onClick = { providerCategory = if (providerCategory == category.first) "All" else category.first },
+                        label = { Text(if (hindi) category.second else category.first) })
+                }
+            }
             if (providers.isEmpty()) {
                 Surface(color = Color.White, shape = RoundedCornerShape(18.dp),
                     modifier = Modifier.fillMaxWidth()) {
@@ -733,9 +755,12 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
                     }
                 }
             } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp),
+                if (filteredProviders.isEmpty()) {
+                    Text(if (hindi) "कोई मिलान नहीं मिला।" else "No matching providers found.",
+                        color = Slate.copy(alpha = .65f), fontSize = 13.sp)
+                } else LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp),
                     contentPadding = PaddingValues(bottom = 24.dp)) {
-                    items(providers, key = { it.id }) { provider ->
+                    items(filteredProviders, key = { it.id }) { provider ->
                         Surface(color = Color.White, shape = RoundedCornerShape(16.dp),
                             modifier = Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
