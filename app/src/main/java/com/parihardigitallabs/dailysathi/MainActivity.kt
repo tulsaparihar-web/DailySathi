@@ -19,6 +19,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -612,6 +613,7 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
     var selectedMode by remember { mutableStateOf("MAPS") }
     var showAddProvider by remember { mutableStateOf(false) }
     var providerBeingEdited by remember { mutableStateOf<LocalServiceProvider?>(null) }
+    var providerPendingDelete by remember { mutableStateOf<LocalServiceProvider?>(null) }
     var directoryMessage by remember { mutableStateOf<String?>(null) }
     var showMarketplaceRegister by remember { mutableStateOf(false) }
     var pendingMarketplace by remember { mutableStateOf<List<LocalServiceProvider>>(emptyList()) }
@@ -745,13 +747,23 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
                 label = { Text(if (hindi) "नाम, सेवा या इलाका खोजें" else "Search name, service or area") },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                FilterChip(selected = providerCategory == "All", onClick = { providerCategory = "All" },
-                    label = { Text(if (hindi) "सभी" else "All") })
-                categories.take(3).forEach { category ->
-                    FilterChip(selected = providerCategory == category.first,
-                        onClick = { providerCategory = if (providerCategory == category.first) "All" else category.first },
-                        label = { Text(if (hindi) category.second else category.first) })
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(7.dp)
+            ) {
+                FilterChip(
+                    selected = providerCategory == "All",
+                    onClick = { providerCategory = "All" },
+                    label = { Text(if (hindi) "सभी सेवाएँ" else "All services") }
+                )
+                categories.forEach { category ->
+                    FilterChip(
+                        selected = providerCategory == category.first,
+                        onClick = {
+                            providerCategory = if (providerCategory == category.first) "All" else category.first
+                        },
+                        label = { Text(if (hindi) category.second else category.first) }
+                    )
                 }
             }
             if (providers.isEmpty()) {
@@ -782,7 +794,19 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
                             modifier = Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Column(Modifier.weight(1f)) {
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = Teal.copy(alpha = .10f)
+                                    ) {
+                                        Icon(
+                                            categories.firstOrNull { it.first.equals(provider.service, true) }?.third
+                                                ?: Icons.Default.Handyman,
+                                            contentDescription = null,
+                                            tint = Teal,
+                                            modifier = Modifier.padding(10.dp).size(22.dp)
+                                        )
+                                    }
+                                    Column(Modifier.weight(1f).padding(start = 10.dp)) {
                                         Text(provider.name, color = Navy, fontWeight = FontWeight.Bold)
                                         Text(provider.service, color = Teal, fontSize = 12.sp)
                                     }
@@ -793,13 +817,16 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
                                         Icon(Icons.Default.Edit, contentDescription = if (hindi) "बदलें" else "Edit",
                                             tint = DailyBlue)
                                     }
-                                    IconButton(onClick = {
-                                        saveProviders(providers.filterNot { it.id == provider.id })
-                                        directoryMessage = if (hindi) "प्रदाता हटा दिया गया।" else "Provider deleted."
-                                    }) {
+                                    IconButton(onClick = { providerPendingDelete = provider }) {
                                         Icon(Icons.Default.DeleteOutline, contentDescription = if (hindi) "हटाएँ" else "Delete",
                                             tint = Color(0xFFB45309))
                                     }
+                                }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Phone, contentDescription = null,
+                                        tint = Slate.copy(alpha = .6f), modifier = Modifier.size(15.dp))
+                                    Text(provider.phone, color = Slate.copy(alpha = .75f), fontSize = 12.sp,
+                                        modifier = Modifier.padding(start = 6.dp))
                                 }
                                 if (provider.area.isNotBlank()) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -933,6 +960,32 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
             Text(if (hindi) "सिर्फ स्वीकृत प्रदाता सार्वजनिक रूप से दिखाई देंगे।" else "Only approved providers are shown publicly.",
                 color = Slate.copy(alpha = .55f), fontSize = 11.sp)
         }
+    }
+    providerPendingDelete?.let { provider ->
+        AlertDialog(
+            onDismissRequest = { providerPendingDelete = null },
+            title = { Text(if (hindi) "प्रदाता हटाएँ?" else "Delete provider?") },
+            text = {
+                Text(
+                    if (hindi) "${provider.name} को आपकी स्थानीय डायरेक्टरी से हटाया जाएगा।"
+                    else "${provider.name} will be removed from your on-device directory."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    saveProviders(providers.filterNot { it.id == provider.id })
+                    providerPendingDelete = null
+                    directoryMessage = if (hindi) "प्रदाता हटा दिया गया।" else "Provider deleted."
+                }) {
+                    Text(if (hindi) "हटाएँ" else "Delete", color = Color(0xFFB45309))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { providerPendingDelete = null }) {
+                    Text(if (hindi) "रद्द करें" else "Cancel")
+                }
+            }
+        )
     }
     if (showMarketplaceRegister) {
         MarketplaceRegistrationDialog(
