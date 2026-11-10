@@ -17,7 +17,21 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
+
+    val localProperties = java.util.Properties().apply {
+        val file = rootProject.file("local.properties")
+        if (file.exists()) file.inputStream().use { load(it) }
+    }
+    val supabaseUrl = localProperties.getProperty("SUPABASE_URL", "")
+    val supabaseKey = localProperties.getProperty("SUPABASE_PUBLISHABLE_KEY", "")
+    defaultConfig {
+        buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
+        buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"$supabaseKey\"")
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
