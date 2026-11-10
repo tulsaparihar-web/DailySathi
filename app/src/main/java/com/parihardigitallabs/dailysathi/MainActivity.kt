@@ -85,6 +85,7 @@ private fun DailySathiApp(database: DailySathiDatabase) {
     var tab by remember { mutableStateOf(MainTab.HOME) }
     var showAdd by remember { mutableStateOf(false) }
     var editingReminder by remember { mutableStateOf<Reminder?>(null) }
+    var reminderPendingDelete by remember { mutableStateOf<Reminder?>(null) }
     val preferences = remember { context.getSharedPreferences("daily_sathi_preferences", android.content.Context.MODE_PRIVATE) }
     var hindi by remember { mutableStateOf(preferences.getBoolean("hindi_language", false)) }
     LaunchedEffect(hindi) { preferences.edit().putBoolean("hindi_language", hindi).apply() }
@@ -158,6 +159,7 @@ private fun DailySathiApp(database: DailySathiDatabase) {
                 reminders, hindi, Modifier.padding(padding),
                 onAdd = { showAdd = true },
                 onServices = { tab = MainTab.SERVICES },
+                onNotifications = { tab = MainTab.CALENDAR },
                 onToggle = { item ->
                     scope.launch {
                         database.reminderDao().update(item.copy(isCompleted = !item.isCompleted))
@@ -185,7 +187,7 @@ private fun DailySathiApp(database: DailySathiDatabase) {
                         else ReminderAlarmScheduler.cancel(context, item.id)
                     }
                 },
-                onDelete = { item -> scope.launch { database.reminderDao().delete(item); ReminderAlarmScheduler.cancel(context, item.id) } },
+                onDelete = { item -> reminderPendingDelete = item },
                 onEdit = { editingReminder = it }
             )
             MainTab.SERVICES -> LocalServicesScreen(hindi, Modifier.padding(padding))
@@ -197,6 +199,26 @@ private fun DailySathiApp(database: DailySathiDatabase) {
         }
     }
 
+
+    reminderPendingDelete?.let { item ->
+        AlertDialog(
+            onDismissRequest = { reminderPendingDelete = null },
+            title = { Text(if (hindi) "रिमाइंडर हटाएँ?" else "Delete reminder?") },
+            text = { Text(if (hindi) "“${item.title}” को स्थायी रूप से हटाया जाएगा।" else "“${item.title}” will be permanently deleted.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    reminderPendingDelete = null
+                    scope.launch {
+                        database.reminderDao().delete(item)
+                        ReminderAlarmScheduler.cancel(context, item.id)
+                    }
+                }) { Text(if (hindi) "हटाएँ" else "Delete", color = Color(0xFFB45309)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { reminderPendingDelete = null }) { Text(if (hindi) "रद्द करें" else "Cancel") }
+            }
+        )
+    }
 
     backupMessage?.let { message ->
         AlertDialog(
@@ -289,6 +311,7 @@ private fun HomeScreen(
     modifier: Modifier,
     onAdd: () -> Unit,
     onServices: () -> Unit,
+    onNotifications: () -> Unit,
     onToggle: (Reminder) -> Unit
 ) {
     val pending = reminders.count { !it.isCompleted }
@@ -312,8 +335,8 @@ private fun HomeScreen(
                         color = Slate.copy(alpha = .72f), fontSize = 14.sp)
                 }
                 Surface(shape = CircleShape, color = Color.White, shadowElevation = 2.dp) {
-                    IconButton(onClick = {}) {
-                        Icon(Icons.Default.NotificationsNone, contentDescription = "Notifications", tint = Navy)
+                    IconButton(onClick = onNotifications) {
+                        Icon(Icons.Default.NotificationsNone, contentDescription = if (hindi) "आगामी रिमाइंडर" else "Upcoming reminders", tint = Navy)
                     }
                 }
             }
@@ -1101,7 +1124,7 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
                             selectedProvider = updated
                             directoryMessage = if (hindi) "आपकी रेटिंग और प्रतिक्रिया सेव हो गई।" else "Your rating and feedback have been saved."
                         },
-                        enabled = ratingDraft in 1..5,
+                        enabled = ratingDraft in 1..5 || feedbackDraft.isNotBlank(),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Icon(Icons.Default.RateReview, contentDescription = null)
@@ -1424,7 +1447,7 @@ private fun SettingsScreen(
                 Text(if (hindi) "बैकअप और रीस्टोर" else "Backup & Restore",
                     fontWeight = FontWeight.SemiBold, color = Navy)
                 Text(if (hindi) "अपने रिमाइंडर और अपॉइंटमेंट का JSON बैकअप सुरक्षित रखें।"
-                    else "Save your reminders and appointments to a JSON backup file.",
+                    else "Save reminders, appointments and your local service directory—including favourites and ratings—to a JSON backup file.",
                     color = Slate.copy(alpha = .65f), fontSize = 12.sp)
                 OutlinedButton(onClick = onExport, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Default.Download, contentDescription = null)
@@ -1436,8 +1459,8 @@ private fun SettingsScreen(
                     Spacer(Modifier.width(8.dp))
                     Text(if (hindi) "बैकअप इम्पोर्ट करें" else "Restore from backup")
                 }
-                Text(if (hindi) "रीस्टोर करने पर मौजूदा रिमाइंडर बदल जाएंगे।"
-                    else "Restoring a backup replaces the reminders currently on this device.",
+                Text(if (hindi) "रीस्टोर करने पर बैकअप के रिमाइंडर और (नए बैकअप में) स्थानीय सेवा सूची मौजूदा डेटा को बदल देंगे।"
+                    else "Restore replaces current reminders and, for newer backups, the local service directory.",
                     color = Color(0xFFB45309), fontSize = 11.sp)
             }
         }
