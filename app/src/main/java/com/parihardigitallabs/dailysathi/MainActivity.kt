@@ -89,11 +89,11 @@ private fun DailySathiApp(database: DailySathiDatabase) {
     var hindi by remember { mutableStateOf(preferences.getBoolean("hindi_language", false)) }
     LaunchedEffect(hindi) { preferences.edit().putBoolean("hindi_language", hindi).apply() }
     var backupMessage by remember { mutableStateOf<String?>(null) }
-    var restorePreview by remember { mutableStateOf<List<Reminder>?>(null) }
+    var restorePreview by remember { mutableStateOf<DailySathiBackup?>(null) }
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri != null) scope.launch {
             runCatching {
-                val json = ReminderBackup.encode(reminders)
+                val providerPrefs = context.getSharedPreferences("daily_sathi_services", android.content.Context.MODE_PRIVATE)\n                val savedProviders = org.json.JSONArray(providerPrefs.getString("providers", "[]") ?: "[]")\n                val providerList = (0 until savedProviders.length()).map { index ->\n                    val item = savedProviders.getJSONObject(index)\n                    LocalServiceProvider(item.getLong("id"), item.getString("name"), item.getString("service"),\n                        item.getString("phone"), item.optString("area"), item.optString("details"),\n                        item.optBoolean("isFavorite", false), item.optInt("userRating", 0), item.optString("feedback"))\n                }\n                val json = ReminderBackup.encode(reminders, providerList)
                 context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(json) }
                     ?: error("Unable to write backup file")
                 backupMessage = if (hindi) "बैकअप सफलतापूर्वक सेव हुआ।" else "Backup saved successfully."
@@ -198,13 +198,13 @@ private fun DailySathiApp(database: DailySathiDatabase) {
             confirmButton = { TextButton(onClick = { backupMessage = null }) { Text("OK") } }
         )
     }
-    restorePreview?.let { restored ->
+    restorePreview?.let { backup ->\n        val restored = backup.reminders
         AlertDialog(
             onDismissRequest = { restorePreview = null },
             title = { Text(if (hindi) "बैकअप रीस्टोर करें?" else "Restore this backup?") },
             text = {
                 Text(if (hindi) "यह डिवाइस के मौजूदा " + reminders.size + " रिमाइंडर हटाकर " + restored.size + " बैकअप रिमाइंडर से बदल देगा।"
-                    else "This will replace the " + reminders.size + " reminders on this device with " + restored.size + " reminders from the backup.")
+                    else "This will replace the " + reminders.size + " reminders and local service directory with the backup contents.")
             },
             confirmButton = {
                 TextButton(onClick = {
@@ -594,7 +594,7 @@ private fun CalendarScreen(reminders: List<Reminder>, hindi: Boolean, modifier: 
     }
 }
 
-private data class LocalServiceProvider(
+internal data class LocalServiceProvider(
     val id: Long,
     val name: String,
     val service: String,
