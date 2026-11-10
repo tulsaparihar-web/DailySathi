@@ -918,24 +918,35 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
         }
     }
     if (showMarketplaceRegister) {
-        AddLocalProviderDialog(hindi = hindi, categories = categories.map { it.first },
-            onDismiss = { showMarketplaceRegister = false }) { name, service, phone, providerArea, details ->
+        MarketplaceRegistrationDialog(
+            hindi = hindi,
+            categories = categories.map { it.first },
+            onDismiss = { showMarketplaceRegister = false }
+        ) { businessName, service, contactName, phone, city, providerArea, details ->
             showMarketplaceRegister = false
             if (!marketplaceApi.isConfigured) {
-                marketplaceMessage = if (hindi) "Supabase कॉन्फ़िगरेशन नहीं मिला। Project URL और Publishable key सेट करें।"
-                    else "Supabase is not configured. Set the Project URL and Publishable key first."
+                marketplaceMessage = if (hindi)
+                    "ऑनलाइन पंजीकरण अभी उपलब्ध नहीं है। स्थानीय डायरेक्टरी में प्रदाता जोड़ सकते हैं।"
+                else
+                    "Online registration is not connected yet. You can add this provider to your local directory."
             } else {
                 marketplaceLoading = true
                 marketplaceScope.launch {
                     runCatching {
                         marketplaceApi.submitProvider(
-                            businessName = name, category = service, contactName = name,
-                            phone = phone, city = providerArea, area = providerArea,
+                            businessName = businessName,
+                            category = service,
+                            contactName = contactName,
+                            phone = phone,
+                            city = city,
+                            area = providerArea,
                             description = details
                         )
                     }.onSuccess {
-                        marketplaceMessage = if (hindi) "आपका आवेदन समीक्षा के लिए भेज दिया गया है। स्वीकृति के बाद लिस्टिंग दिखाई देगी।"
-                            else "Your application was submitted for review. It will appear after approval."
+                        marketplaceMessage = if (hindi)
+                            "आपका आवेदन समीक्षा के लिए भेज दिया गया है। स्वीकृति के बाद लिस्टिंग दिखाई देगी।"
+                        else
+                            "Your application was submitted for review. It will appear after approval."
                     }.onFailure {
                         marketplaceMessage = it.message ?: "Unable to submit provider application."
                     }
@@ -953,6 +964,103 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
             showAddProvider = false
         }
     }
+}
+
+@Composable
+private fun MarketplaceRegistrationDialog(
+    hindi: Boolean,
+    categories: List<String>,
+    onDismiss: () -> Unit,
+    onSubmit: (String, String, String, String, String, String, String) -> Unit
+) {
+    var businessName by remember { mutableStateOf("") }
+    var contactName by remember { mutableStateOf("") }
+    var service by remember { mutableStateOf(categories.first()) }
+    var phone by remember { mutableStateOf("") }
+    var city by remember { mutableStateOf("") }
+    var area by remember { mutableStateOf("") }
+    var details by remember { mutableStateOf("") }
+    var categoryExpanded by remember { mutableStateOf(false) }
+    val validPhone = phone.count { it.isDigit() } in 10..13
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (hindi) "सेवा प्रदाता पंजीकरण" else "Service provider registration") },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    if (hindi) "आपकी जानकारी समीक्षा के बाद ही सार्वजनिक होगी।"
+                    else "Your listing will become public only after moderation.",
+                    color = Slate.copy(alpha = .7f), fontSize = 12.sp
+                )
+                OutlinedTextField(
+                    value = businessName, onValueChange = { businessName = it },
+                    label = { Text(if (hindi) "व्यवसाय / दुकान का नाम" else "Business / shop name") },
+                    singleLine = true, modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = contactName, onValueChange = { contactName = it },
+                    label = { Text(if (hindi) "संपर्क व्यक्ति का नाम" else "Contact person name") },
+                    singleLine = true, modifier = Modifier.fillMaxWidth()
+                )
+                Box {
+                    OutlinedButton(onClick = { categoryExpanded = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text(service)
+                    }
+                    DropdownMenu(expanded = categoryExpanded, onDismissRequest = { categoryExpanded = false }) {
+                        categories.forEach { item ->
+                            DropdownMenuItem(text = { Text(item) }, onClick = {
+                                service = item
+                                categoryExpanded = false
+                            })
+                        }
+                    }
+                }
+                OutlinedTextField(
+                    value = phone,
+                    onValueChange = { phone = it.filter { ch -> ch.isDigit() || ch == '+' }.take(14) },
+                    label = { Text(if (hindi) "मोबाइल नंबर" else "Mobile number") },
+                    singleLine = true, modifier = Modifier.fillMaxWidth(),
+                    isError = phone.isNotBlank() && !validPhone
+                )
+                OutlinedTextField(
+                    value = city, onValueChange = { city = it },
+                    label = { Text(if (hindi) "शहर" else "City") },
+                    singleLine = true, modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = area, onValueChange = { area = it },
+                    label = { Text(if (hindi) "इलाका / क्षेत्र" else "Area / locality") },
+                    singleLine = true, modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = details, onValueChange = { details = it },
+                    label = { Text(if (hindi) "सेवा का विवरण (वैकल्पिक)" else "Service details (optional)") },
+                    minLines = 2, modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onSubmit(
+                        businessName.trim(), service, contactName.trim(), phone.trim(),
+                        city.trim(), area.trim(), details.trim()
+                    )
+                },
+                enabled = businessName.isNotBlank() && contactName.isNotBlank() &&
+                    city.isNotBlank() && area.isNotBlank() && validPhone
+            ) {
+                Text(if (hindi) "आवेदन भेजें" else "Submit application")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(if (hindi) "रद्द करें" else "Cancel") }
+        }
+    )
 }
 
 @Composable
