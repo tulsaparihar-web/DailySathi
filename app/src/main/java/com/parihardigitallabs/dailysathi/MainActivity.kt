@@ -93,7 +93,15 @@ private fun DailySathiApp(database: DailySathiDatabase) {
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri != null) scope.launch {
             runCatching {
-                val providerPrefs = context.getSharedPreferences("daily_sathi_services", android.content.Context.MODE_PRIVATE)\n                val savedProviders = org.json.JSONArray(providerPrefs.getString("providers", "[]") ?: "[]")\n                val providerList = (0 until savedProviders.length()).map { index ->\n                    val item = savedProviders.getJSONObject(index)\n                    LocalServiceProvider(item.getLong("id"), item.getString("name"), item.getString("service"),\n                        item.getString("phone"), item.optString("area"), item.optString("details"),\n                        item.optBoolean("isFavorite", false), item.optInt("userRating", 0), item.optString("feedback"))\n                }\n                val json = ReminderBackup.encode(reminders, providerList)
+                val providerPrefs = context.getSharedPreferences("daily_sathi_services", android.content.Context.MODE_PRIVATE)
+                val savedProviders = org.json.JSONArray(providerPrefs.getString("providers", "[]") ?: "[]")
+                val providerList = (0 until savedProviders.length()).map { index ->
+                    val item = savedProviders.getJSONObject(index)
+                    LocalServiceProvider(item.getLong("id"), item.getString("name"), item.getString("service"),
+                        item.getString("phone"), item.optString("area"), item.optString("details"),
+                        item.optBoolean("isFavorite", false), item.optInt("userRating", 0), item.optString("feedback"))
+                }
+                val json = ReminderBackup.encode(reminders, providerList)
                 context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(json) }
                     ?: error("Unable to write backup file")
                 backupMessage = if (hindi) "बैकअप सफलतापूर्वक सेव हुआ।" else "Backup saved successfully."
@@ -198,28 +206,37 @@ private fun DailySathiApp(database: DailySathiDatabase) {
             confirmButton = { TextButton(onClick = { backupMessage = null }) { Text("OK") } }
         )
     }
-    restorePreview?.let { backup ->\n        val restored = backup.reminders
+    restorePreview?.let { backup ->
+        val restored = backup.reminders
         AlertDialog(
             onDismissRequest = { restorePreview = null },
             title = { Text(if (hindi) "बैकअप रीस्टोर करें?" else "Restore this backup?") },
             text = {
-                Text(if (hindi) "यह डिवाइस के मौजूदा " + reminders.size + " रिमाइंडर हटाकर " + restored.size + " बैकअप रिमाइंडर से बदल देगा।"
+                Text(if (hindi) "यह डिवाइस के मौजूदा " + reminders.size + " रिमाइंडर और स्थानीय सेवा सूची को बैकअप की जानकारी से बदल देगा।"
                     else "This will replace the " + reminders.size + " reminders and local service directory with the backup contents.")
             },
             confirmButton = {
                 TextButton(onClick = {
                     val itemsToRestore = restored
+                    val providersToRestore = backup.providers
+                    val restoreProviders = backup.includesProviders
                     restorePreview = null
                     scope.launch {
                         runCatching {
                             // Commit the database replacement first; if it fails, existing alarms remain intact.
                             database.reminderDao().replaceAll(itemsToRestore)
+                            if (restoreProviders) {
+                                val providerPrefs = context.getSharedPreferences("daily_sathi_services", android.content.Context.MODE_PRIVATE)
+                                check(providerPrefs.edit().putString("providers", ReminderBackup.encodeProviders(providersToRestore).toString()).commit()) {
+                                    "Unable to save restored service providers"
+                                }
+                            }
                             reminders.forEach { ReminderAlarmScheduler.cancel(context, it.id) }
                             itemsToRestore.filter { !it.isCompleted }.forEach { item ->
                                 item.dueAtMillis?.let { ReminderAlarmScheduler.schedule(context, item.id, it) }
                             }
-                            backupMessage = if (hindi) itemsToRestore.size.toString() + " रिमाइंडर रीस्टोर हुए।"
-                                else "Restored " + itemsToRestore.size + " reminders successfully."
+                            backupMessage = if (hindi) itemsToRestore.size.toString() + " रिमाइंडर और " + (if (restoreProviders) providersToRestore.size else 0) + " सेवा प्रदाता रीस्टोर हुए।"
+                                else "Restored " + itemsToRestore.size + " reminders and " + (if (restoreProviders) providersToRestore.size else 0) + " service providers successfully."
                         }.onFailure {
                             backupMessage = (if (hindi) "रीस्टोर विफल: " else "Restore failed: ") + (it.message ?: "Database error")
                         }
@@ -306,7 +323,9 @@ private fun HomeScreen(
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(if (hindi) "नमस्ते!" else "Hello there!", color = Color.White.copy(alpha = .8f))
                     Text(
-                        if (hindi) "आज की छोटी बातें,\nकल की बड़ी राहत।" else "Make room for what\nmatters today.",
+                        if (hindi) "आज की छोटी बातें,
+कल की बड़ी राहत।" else "Make room for what
+matters today.",
                         color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.Bold, lineHeight = 29.sp
                     )
                     Text(
@@ -1023,12 +1042,18 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
         var ratingDraft by remember(provider.id) { mutableIntStateOf(provider.userRating) }
         var feedbackDraft by remember(provider.id) { mutableStateOf(provider.feedback) }
         val shareText = buildString {
-            append(provider.name).append("\n")
-            append(if (hindi) "सेवा: " else "Service: ").append(provider.service).append("\n")
+            append(provider.name).append("
+")
+            append(if (hindi) "सेवा: " else "Service: ").append(provider.service).append("
+")
             append(if (hindi) "मोबाइल: " else "Phone: ").append(provider.phone)
-            if (provider.area.isNotBlank()) append("\n").append(if (hindi) "इलाका: " else "Area: ").append(provider.area)
-            if (provider.details.isNotBlank()) append("\n").append(if (hindi) "विवरण: " else "Details: ").append(provider.details)
-            append("\n\n").append(if (hindi) "DailySathi से साझा किया गया" else "Shared via DailySathi")
+            if (provider.area.isNotBlank()) append("
+").append(if (hindi) "इलाका: " else "Area: ").append(provider.area)
+            if (provider.details.isNotBlank()) append("
+").append(if (hindi) "विवरण: " else "Details: ").append(provider.details)
+            append("
+
+").append(if (hindi) "DailySathi से साझा किया गया" else "Shared via DailySathi")
         }
         AlertDialog(
             onDismissRequest = { selectedProvider = null },
