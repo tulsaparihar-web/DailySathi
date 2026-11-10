@@ -609,6 +609,10 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
     var providerCategory by remember { mutableStateOf("All") }
     var selectedMode by remember { mutableStateOf("MAPS") }
     var showAddProvider by remember { mutableStateOf(false) }
+    var demoPhone by remember { mutableStateOf("+919999999999") }
+    var demoOtp by remember { mutableStateOf("123456") }
+    var demoSignedIn by remember { mutableStateOf(false) }
+    var demoLoginError by remember { mutableStateOf(false) }
     var providers by remember {
         mutableStateOf(runCatching {
             val saved = org.json.JSONArray(preferences.getString("providers", "[]") ?: "[]")
@@ -653,6 +657,52 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
             fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Navy)
         Text(if (hindi) "मैप्स पर खोजें या अपनी स्थानीय सेवा सूची बनाएँ।" else "Search on Maps or build your own local provider list.",
             color = Slate.copy(alpha = .68f), fontSize = 13.sp)
+        if (BuildConfig.DEBUG) {
+            Spacer(Modifier.height(10.dp))
+            Surface(color = Color.White, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(if (hindi) "डेवलपमेंट लॉगिन" else "Development login preview",
+                            color = Navy, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        Surface(color = Color(0xFFFFF3CD), shape = RoundedCornerShape(20.dp)) {
+                            Text("DEBUG ONLY", color = Color(0xFF8A5A00), fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                        }
+                    }
+                    Text(
+                        if (hindi) "यह अस्थायी डेमो है। इससे Supabase में लॉगिन या ऑनलाइन डेटा एक्सेस नहीं होता।"
+                        else "Temporary preview only. This does not authenticate with Supabase or access cloud data.",
+                        color = Slate.copy(alpha = .68f), fontSize = 11.sp
+                    )
+                    if (demoSignedIn) {
+                        Text(if (hindi) "डेमो लॉगिन सक्रिय: $demoPhone" else "Demo login active: $demoPhone",
+                            color = Teal, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        OutlinedButton(onClick = { demoSignedIn = false; demoLoginError = false },
+                            modifier = Modifier.fillMaxWidth()) {
+                            Text(if (hindi) "डेमो लॉगआउट" else "Sign out of demo")
+                        }
+                    } else {
+                        OutlinedTextField(value = demoPhone, onValueChange = { demoPhone = it },
+                            modifier = Modifier.fillMaxWidth(), singleLine = true,
+                            label = { Text(if (hindi) "टेस्ट मोबाइल नंबर" else "Test mobile number") })
+                        OutlinedTextField(value = demoOtp, onValueChange = { demoOtp = it.filter(Char::isDigit).take(6) },
+                            modifier = Modifier.fillMaxWidth(), singleLine = true,
+                            label = { Text(if (hindi) "फिक्स्ड OTP (123456)" else "Fixed OTP (123456)") })
+                        if (demoLoginError) {
+                            Text(if (hindi) "गलत नंबर या OTP। डेमो OTP 123456 है।"
+                                else "Invalid demo number or OTP. Use +919999999999 and 123456.",
+                                color = Color(0xFFB42318), fontSize = 11.sp)
+                        }
+                        Button(onClick = {
+                            demoLoginError = !(demoPhone.filter(Char::isDigit) == "919999999999" && demoOtp == "123456")
+                            if (!demoLoginError) demoSignedIn = true
+                        }, modifier = Modifier.fillMaxWidth()) {
+                            Text(if (hindi) "डेमो लॉगिन करें" else "Continue with demo login")
+                        }
+                    }
+                }
+            }
+        }
         Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(selected = selectedMode == "MAPS", onClick = { selectedMode = "MAPS" },
