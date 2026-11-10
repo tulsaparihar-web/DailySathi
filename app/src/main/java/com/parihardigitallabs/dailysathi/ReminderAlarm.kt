@@ -78,10 +78,18 @@ class ReminderNotificationReceiver : BroadcastReceiver() {
                 val item = DailySathiDatabase.getInstance(context).reminderDao().getById(id)
                 if (item != null && !item.isCompleted) {
                     ReminderAlarmScheduler.showNotification(context, item.title, item.note, item.id)
-                    val nextDue = nextOccurrence(item.dueAtMillis, item.recurrence)
+                    val anchorDay = if (item.recurrenceDayOfMonth in 1..31) {
+                        item.recurrenceDayOfMonth
+                    } else {
+                        item.dueAtMillis?.let {
+                            java.util.Calendar.getInstance().apply { timeInMillis = it }
+                                .get(java.util.Calendar.DAY_OF_MONTH)
+                        } ?: 0
+                    }
+                    val nextDue = nextOccurrence(item.dueAtMillis, item.recurrence, recurrenceDayOfMonth = anchorDay)
                     if (nextDue != null) {
                         DailySathiDatabase.getInstance(context).reminderDao()
-                            .update(item.copy(dueAtMillis = nextDue))
+                            .update(item.copy(dueAtMillis = nextDue, recurrenceDayOfMonth = anchorDay))
                         ReminderAlarmScheduler.schedule(context, item.id, nextDue)
                     }
                 }
@@ -112,18 +120,33 @@ class ReminderBootReceiver : BroadcastReceiver() {
 internal fun nextOccurrence(
     dueAtMillis: Long?,
     recurrence: String,
-    nowMillis: Long = System.currentTimeMillis()
+    nowMillis: Long = System.currentTimeMillis(),
+    recurrenceDayOfMonth: Int = 0
 ): Long? {
     if (dueAtMillis == null) return null
-    val calendarField = when (recurrence) {
-        "DAILY" -> java.util.Calendar.DAY_OF_YEAR
-        "WEEKLY" -> java.util.Calendar.WEEK_OF_YEAR
-        "MONTHLY" -> java.util.Calendar.MONTH
+    val next = java.util.Calendar.getInstance().apply { timeInMillis = dueAtMillis }
+    when (recurrence) {
+        "DAILY", "WEEKLY" -> {
+            val field = if (recurrence == "DAILY") java.util.Calendar.DAY_OF_YEAR
+                else java.util.Calendar.WEEK_OF_YEAR
+            // Catch up missed repeats while preserving the originally selected local time.
+            while (next.timeInMillis <= nowMillis) next.add(field, 1)
+        }
+        "MONTHLY" -> {
+            // Keep the original day (e.g. the 31st) when shorter months require clamping.
+            // This avoids Calendar.add() rolling Jan 31 into March and permanently drifting.
+            val anchorDay = recurrenceDayOfMonth.takeIf { it in 1..31 }
+                ?: next.get(java.util.Calendar.DAY_OF_MONTH)
+            while (next.timeInMillis <= nowMillis) {
+                next.set(java.util.Calendar.DAY_OF_MONTH, 1)
+                next.add(java.util.Calendar.MONTH, 1)
+                next.set(
+                    java.util.Calendar.DAY_OF_MONTH,
+                    minOf(anchorDay, next.getActualMaximum(java.util.Calendar.DAY_OF_MONTH))
+                )
+            }
+        }
         else -> return null
     }
-    val next = java.util.Calendar.getInstance().apply { timeInMillis = dueAtMillis }
-    // Catch up missed repeats after the device has been off or the app was unused.
-    // Always return the next future occurrence so the reminder is not silently lost.
-    while (next.timeInMillis <= nowMillis) next.add(calendarField, 1)
     return next.timeInMillis
 }
