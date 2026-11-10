@@ -823,7 +823,7 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
                                     }
                                     IconButton(onClick = {
                                         saveProviders(providers.map { if (it.id == provider.id) it.copy(isFavorite = !it.isFavorite) else it })
-                                        selectedProvider = selectedProvider?.takeIf { it.id != provider.id } ?: provider.copy(isFavorite = !provider.isFavorite)
+                                        selectedProvider = selectedProvider?.let { if (it.id == provider.id) it.copy(isFavorite = !it.isFavorite) else it }
                                     }) {
                                         Icon(if (provider.isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
                                             contentDescription = if (hindi) "पसंदीदा बदलें" else "Toggle favorite",
