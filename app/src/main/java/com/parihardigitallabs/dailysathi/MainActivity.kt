@@ -601,7 +601,9 @@ private data class LocalServiceProvider(
     val phone: String,
     val area: String,
     val details: String,
-    val isFavorite: Boolean = false
+    val isFavorite: Boolean = false,
+    val userRating: Int = 0,
+    val feedback: String = ""
 )
 
 @Composable
@@ -632,7 +634,8 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
                 val item = saved.getJSONObject(index)
                 LocalServiceProvider(
                     item.getLong("id"), item.getString("name"), item.getString("service"),
-                    item.getString("phone"), item.optString("area"), item.optString("details"), item.optBoolean("isFavorite", false)
+                    item.getString("phone"), item.optString("area"), item.optString("details"),
+                    item.optBoolean("isFavorite", false), item.optInt("userRating", 0), item.optString("feedback")
                 )
             }
         }.getOrDefault(emptyList()))
@@ -662,7 +665,8 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
                 .put("id", provider.id).put("name", provider.name)
                 .put("service", provider.service).put("phone", provider.phone)
                 .put("area", provider.area).put("details", provider.details)
-                .put("isFavorite", provider.isFavorite))
+                .put("isFavorite", provider.isFavorite)
+                .put("userRating", provider.userRating).put("feedback", provider.feedback))
         }
         preferences.edit().putString("providers", json.toString()).apply()
     }
@@ -820,6 +824,10 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
                                     Column(Modifier.weight(1f).padding(start = 10.dp)) {
                                         Text(provider.name, color = Navy, fontWeight = FontWeight.Bold)
                                         Text(provider.service, color = Teal, fontSize = 12.sp)
+                                if (provider.userRating > 0) {
+                                    Text((if (hindi) "आपकी रेटिंग: " else "Your rating: ") + "★".repeat(provider.userRating),
+                                        color = Color(0xFFB7791F), fontSize = 11.sp)
+                                }
                                     }
                                     IconButton(onClick = {
                                         saveProviders(providers.map { if (it.id == provider.id) it.copy(isFavorite = !it.isFavorite) else it })
@@ -1012,6 +1020,8 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
         )
     }
     selectedProvider?.let { provider ->
+        var ratingDraft by remember(provider.id) { mutableIntStateOf(provider.userRating) }
+        var feedbackDraft by remember(provider.id) { mutableStateOf(provider.feedback) }
         val shareText = buildString {
             append(provider.name).append("\n")
             append(if (hindi) "सेवा: " else "Service: ").append(provider.service).append("\n")
@@ -1044,6 +1054,42 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
                         Text(if (hindi) "सेवा का विवरण" else "Service description",
                             color = Navy, fontWeight = FontWeight.SemiBold)
                         Text(provider.details, color = Slate)
+                    }
+                    Divider(color = SoftBg)
+                    Text(if (hindi) "आपकी रेटिंग" else "Your rating",
+                        color = Navy, fontWeight = FontWeight.SemiBold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        (1..5).forEach { value ->
+                            IconButton(onClick = { ratingDraft = value }) {
+                                Icon(
+                                    if (value <= ratingDraft) Icons.Default.Star else Icons.Default.StarBorder,
+                                    contentDescription = "$value",
+                                    tint = if (value <= ratingDraft) Color(0xFFE0A000) else Slate.copy(alpha = .4f)
+                                )
+                            }
+                        }
+                    }
+                    OutlinedTextField(
+                        value = feedbackDraft,
+                        onValueChange = { feedbackDraft = it.take(500) },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(if (hindi) "सेवा का अनुभव लिखें (वैकल्पिक)" else "Share service feedback (optional)") },
+                        minLines = 2,
+                        supportingText = { Text("${feedbackDraft.length}/500") }
+                    )
+                    OutlinedButton(
+                        onClick = {
+                            val updated = provider.copy(userRating = ratingDraft, feedback = feedbackDraft.trim())
+                            saveProviders(providers.map { if (it.id == provider.id) updated else it })
+                            selectedProvider = updated
+                            directoryMessage = if (hindi) "आपकी रेटिंग और प्रतिक्रिया सेव हो गई।" else "Your rating and feedback have been saved."
+                        },
+                        enabled = ratingDraft in 1..5,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.RateReview, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (hindi) "रेटिंग और प्रतिक्रिया सेव करें" else "Save rating & feedback")
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = {
