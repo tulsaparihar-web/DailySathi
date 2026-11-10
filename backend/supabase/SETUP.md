@@ -3,20 +3,20 @@
 This folder contains the initial database contract for the shared Local Services marketplace.
 
 ## What this provides
-- Provider profiles linked to a verified Supabase Auth account.
-- Listings start as `pending`; they are not visible to customers until approved.
+- Customers can browse approved listings without login.
+- During the initial free launch, providers can submit listings without OTP; submissions start as `pending`.
 - Public discovery returns only approved listings.
-- Providers can edit or delete their own pending submissions.
+- Admin moderation remains restricted to trusted admin claims.
 - Admin moderation uses a trusted Supabase Auth `app_metadata.role = admin` claim.
 - Search indexes cover category/city and area.
 
 ## Setup
 1. Create a Supabase project.
-2. In Authentication > Providers, enable Phone and configure an SMS provider. SMS delivery may incur charges depending on provider and country.
-3. Open SQL Editor and run `schema.sql`.
+2. Phone authentication and an SMS provider are not required for the initial free launch.
+3. Open SQL Editor and run the updated `schema.sql`. If the table already exists, the script also makes `owner_id` nullable for anonymous submissions.
 4. Keep the project URL and anon/publishable key in app configuration. Never put a service-role key in the Android app.
 5. Set the trusted `app_metadata.role` claim to `admin` only for designated moderators using a secure server-side admin process. Never let a client set this claim.
-6. Test provider sign-in, pending submission, admin approval, and public listing access with separate test accounts before launch.
+6. Test anonymous provider submission, pending status, admin approval, and public listing access before launch.
 
 ## Important launch safeguards
 - Do not publish provider contact details until the provider has consented and the listing is approved.
@@ -27,7 +27,7 @@ This folder contains the initial database contract for the shared Local Services
 - Configure Supabase backups, retention, and project access controls.
 
 ## Android integration status
-The current Android app still uses an on-device provider list. This SQL is the secure shared-backend foundation, not a live connection. The cloud integration requires the project's URL/key and the chosen SMS provider configuration; those values must be supplied through secure build configuration, not committed to Git.
+The Android app uses the Supabase project URL and publishable key for public listing reads and pending provider submissions. Phone OTP is intentionally deferred. Keep the service-role key out of the app.
 
 
 ## Local Android build configuration
