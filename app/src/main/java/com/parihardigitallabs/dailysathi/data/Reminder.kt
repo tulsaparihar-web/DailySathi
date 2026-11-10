@@ -15,5 +15,6 @@ data class Reminder(
     val recurrence: String = "NONE",
     val providerName: String = "",
     val location: String = "",
-    val preparationNotes: String = ""
+    val preparationNotes: String = "",
+    val recurrenceDayOfMonth: Int = 0
 )
