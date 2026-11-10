@@ -609,6 +609,8 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
     var providerCategory by remember { mutableStateOf("All") }
     var selectedMode by remember { mutableStateOf("MAPS") }
     var showAddProvider by remember { mutableStateOf(false) }
+    var showMarketplaceRegister by remember { mutableStateOf(false) }
+    var pendingMarketplace by remember { mutableStateOf<List<LocalServiceProvider>>(emptyList()) }
     var demoPhone by remember { mutableStateOf("+919999999999") }
     var demoOtp by remember { mutableStateOf("123456") }
     var demoSignedIn by remember { mutableStateOf(false) }
@@ -711,6 +713,9 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
             FilterChip(selected = selectedMode == "DIRECTORY", onClick = { selectedMode = "DIRECTORY" },
                 label = { Text(if (hindi) "प्रदाता डायरेक्टरी" else "Provider Directory") },
                 leadingIcon = { Icon(Icons.Default.People, contentDescription = null) })
+            FilterChip(selected = selectedMode == "MARKETPLACE", onClick = { selectedMode = "MARKETPLACE" },
+                label = { Text(if (hindi) "मार्केटप्लेस" else "Marketplace") },
+                leadingIcon = { Icon(Icons.Default.Storefront, contentDescription = null) })
         }
         if (selectedMode == "MAPS") {
             OutlinedTextField(
@@ -758,7 +763,7 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
                         color = Slate.copy(alpha = .55f), fontSize = 11.sp)
                 }
             }
-        } else {
+        } else if (selectedMode == "DIRECTORY") {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(if (hindi) "आपकी सेवा सूची" else "Your provider directory",
@@ -858,6 +863,87 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
             Text(if (hindi) "ध्यान दें: ये प्रविष्टियाँ केवल इसी डिवाइस पर सेव होती हैं; अभी सार्वजनिक ऑनलाइन डायरेक्टरी नहीं है।"
                 else "Note: These entries are stored on this device only; a shared online directory is not connected yet.",
                 color = Slate.copy(alpha = .55f), fontSize = 11.sp)
+        } else {
+            Surface(color = Color.White, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    Text(if (hindi) "DailySathi सेवा मार्केटप्लेस" else "DailySathi Service Marketplace",
+                        color = Navy, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    Text(if (hindi) "लॉगिन और प्रदाता पंजीकरण का विकास पूर्वावलोकन। वास्तविक OTP/SMS और क्लाउड लिस्टिंग अभी सक्रिय नहीं हैं।"
+                        else "Development preview for login and provider onboarding. Real OTP/SMS and cloud listings are not active yet.",
+                        color = Slate.copy(alpha = .68f), fontSize = 12.sp)
+                    if (!BuildConfig.DEBUG) {
+                        Text(if (hindi) "मार्केटप्लेस जल्द उपलब्ध होगा।" else "Marketplace will be available soon.",
+                            color = Teal, fontWeight = FontWeight.SemiBold)
+                    } else if (!demoSignedIn) {
+                        Text(if (hindi) "आगे बढ़ने के लिए ऊपर Development login preview में टेस्ट लॉगिन करें।"
+                            else "Use the Development login preview above to sign in before trying provider registration.",
+                            color = Slate, fontSize = 13.sp)
+                    } else {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = Teal)
+                            Text(if (hindi) "डेमो उपयोगकर्ता के रूप में लॉगिन" else "Signed in as a demo user",
+                                color = Teal, fontWeight = FontWeight.SemiBold)
+                        }
+                        Button(onClick = { showMarketplaceRegister = true }, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Default.AddBusiness, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text(if (hindi) "सेवा प्रदाता के रूप में पंजीकरण" else "Register as a service provider")
+                        }
+                        Text(if (hindi) "आपके डेमो आवेदन" else "Your demo applications",
+                            color = Navy, fontWeight = FontWeight.SemiBold)
+                        if (pendingMarketplace.isEmpty()) {
+                            Text(if (hindi) "अभी कोई आवेदन नहीं। पंजीकरण करके शुरुआत करें।"
+                                else "No applications yet. Register a provider to get started.",
+                                color = Slate.copy(alpha = .65f), fontSize = 12.sp)
+                        } else {
+                            pendingMarketplace.forEach { item ->
+                                Surface(color = SoftBg, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                        Text(item.name, color = Navy, fontWeight = FontWeight.SemiBold)
+                                        Text(item.service + " • " + item.area, color = Slate, fontSize = 12.sp)
+                                        Text(if (hindi) "स्थिति: समीक्षा हेतु लंबित (केवल डेमो)" else "Status: Pending review (demo only)",
+                                            color = Color(0xFF9A6700), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            Text(if (hindi) "पूर्वावलोकन डायरेक्टरी" else "Preview directory",
+                color = Navy, fontWeight = FontWeight.SemiBold)
+            OutlinedTextField(value = providerQuery, onValueChange = { providerQuery = it },
+                modifier = Modifier.fillMaxWidth(), singleLine = true,
+                label = { Text(if (hindi) "नाम, सेवा या इलाका खोजें" else "Search name, service or area") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) })
+            Text(if (hindi) "यह डिवाइस पर सेव की गई निजी सूची है, सार्वजनिक अनुमोदित क्लाउड लिस्टिंग नहीं।"
+                else "This is the on-device directory preview, not a public approved cloud listing.",
+                color = Slate.copy(alpha = .55f), fontSize = 11.sp)
+            val previewMatches = filteredProviders
+            if (previewMatches.isEmpty()) {
+                Text(if (hindi) "पूर्वावलोकन सूची खाली है।" else "No preview listings available.",
+                    color = Slate.copy(alpha = .65f), fontSize = 12.sp)
+            } else {
+                previewMatches.forEach { item ->
+                    Surface(color = Color.White, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(12.dp)) {
+                            Text(item.name, color = Navy, fontWeight = FontWeight.SemiBold)
+                            Text(item.service + " • " + item.area, color = Slate, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if (showMarketplaceRegister) {
+        AddLocalProviderDialog(hindi = hindi, categories = categories.map { it.first },
+            onDismiss = { showMarketplaceRegister = false }) { name, service, phone, providerArea, details ->
+            pendingMarketplace = pendingMarketplace + LocalServiceProvider(
+                id = System.currentTimeMillis(), name = name, service = service,
+                phone = phone, area = providerArea, details = details
+            )
+            showMarketplaceRegister = false
         }
     }
     if (showAddProvider) {
