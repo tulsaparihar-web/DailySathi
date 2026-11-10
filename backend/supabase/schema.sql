@@ -1,10 +1,10 @@
 -- DailySathi Local Services Marketplace
--- Run this in the Supabase SQL Editor after enabling Phone Auth.
+-- Run this in the Supabase SQL Editor. Phone Auth is not required for the initial free launch.
 create extension if not exists pgcrypto;
 
 create table if not exists public.service_providers (
     id uuid primary key default gen_random_uuid(),
-    owner_id uuid not null references auth.users(id) on delete cascade,
+    owner_id uuid references auth.users(id) on delete set null,
     business_name text not null check (char_length(trim(business_name)) between 2 and 80),
     category text not null check (category in (
         'Electrician','Plumber','Mason','Carpenter','Painter',
@@ -37,12 +37,16 @@ create policy "Public can view approved providers"
     on public.service_providers for select
     using (status = 'approved');
 
--- A signed-in provider can submit a listing only for their own account,
--- and every new listing starts in the moderation queue.
+-- Initial free launch: anyone can submit a provider application without OTP.
+-- Submissions are forced to pending and never appear publicly until approved.
+-- Add CAPTCHA/rate limiting at an Edge Function before broad public promotion.
+alter table public.service_providers alter column owner_id drop not null;
+
 drop policy if exists "Providers can submit pending listings" on public.service_providers;
-create policy "Providers can submit pending listings"
-    on public.service_providers for insert to authenticated
-    with check (owner_id = auth.uid() and status = 'pending');
+drop policy if exists "Public can submit pending listings" on public.service_providers;
+create policy "Public can submit pending listings"
+    on public.service_providers for insert to anon, authenticated
+    with check (owner_id is null and status = 'pending');
 
 -- Providers can edit their own pending listings. Approved listings require
 -- admin moderation before any public profile changes take effect.
