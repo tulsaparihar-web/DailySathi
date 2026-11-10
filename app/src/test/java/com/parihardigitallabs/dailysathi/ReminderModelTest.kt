@@ -123,4 +123,32 @@ class ReminderModelTest {
     fun missingDueDateHasNoNextOccurrence() {
         assertNull(nextOccurrence(null, "DAILY", 2_000L))
     }
+    @Test
+    fun calendarDayBoundaryResetsTimeToLocalMidnight() {
+        val afternoon = Calendar.getInstance().apply {
+            set(2026, Calendar.NOVEMBER, 10, 16, 45, 32)
+            set(Calendar.MILLISECOND, 456)
+        }.timeInMillis
+        val expected = Calendar.getInstance().apply {
+            set(2026, Calendar.NOVEMBER, 10, 0, 0, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+        assertEquals(expected, startOfLocalDay(afternoon))
+    }
+
+    @Test
+    fun calendarDayBoundaryUsesTheInputDateNotTheCurrentDate() {
+        val previousDay = Calendar.getInstance().apply {
+            set(2026, Calendar.NOVEMBER, 9, 23, 59, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        val expected = Calendar.getInstance().apply {
+            set(2026, Calendar.NOVEMBER, 9, 0, 0, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+        assertEquals(expected, startOfLocalDay(previousDay))
+    }
+
 }
