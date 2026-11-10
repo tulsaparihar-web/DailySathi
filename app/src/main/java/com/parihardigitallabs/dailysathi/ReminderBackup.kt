@@ -76,6 +76,18 @@ internal object ReminderBackup {
         }
         require(restored.map { it.id }.distinct().size == restored.size) { "Duplicate reminder IDs in backup" }
         require(restored.all { it.id > 0L }) { "Invalid reminder ID in backup" }
+        val validRecurrences = setOf("NONE", "DAILY", "WEEKLY", "MONTHLY")
+        restored.forEach { reminder ->
+            require(reminder.recurrence in validRecurrences) { "Unsupported reminder recurrence" }
+            require(reminder.createdAtMillis > 0L) { "Invalid reminder creation date" }
+            require(reminder.dueAtMillis == null || reminder.dueAtMillis > 0L) { "Invalid reminder due date" }
+            require(reminder.recurrence == "NONE" || reminder.dueAtMillis != null) {
+                "Recurring reminders must have a due date"
+            }
+            require(reminder.recurrenceDayOfMonth == 0 || reminder.recurrence == "MONTHLY") {
+                "Monthly recurrence day is only valid for monthly reminders"
+            }
+        }
 
         val hasProviders = version >= 2 && root.has("providers")
         val providerItems = if (hasProviders) root.getJSONArray("providers") else JSONArray()
