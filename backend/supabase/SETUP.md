@@ -28,3 +28,16 @@ This folder contains the initial database contract for the shared Local Services
 
 ## Android integration status
 The current Android app still uses an on-device provider list. This SQL is the secure shared-backend foundation, not a live connection. The cloud integration requires the project's URL/key and the chosen SMS provider configuration; those values must be supplied through secure build configuration, not committed to Git.
+
+
+## Local Android build configuration
+Create or edit `local.properties` in the repository root on the development machine (this file is ignored by Git) and add:
+
+```properties
+SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+SUPABASE_PUBLISHABLE_KEY=YOUR_SUPABASE_PUBLISHABLE_OR_ANON_KEY
+```
+
+Do not add the service-role key. The Android build reads these values into BuildConfig. A build without them still compiles, but cloud marketplace requests remain disabled and the app displays a setup notice.
+
+For GitHub Actions builds, add repository Actions secrets named `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`, then map them into a generated local.properties file before the Gradle build. Never commit credentials to source control.
