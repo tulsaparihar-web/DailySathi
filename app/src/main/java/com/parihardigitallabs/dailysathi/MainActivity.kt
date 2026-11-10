@@ -36,6 +36,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parihardigitallabs.dailysathi.data.DailySathiDatabase
 import com.parihardigitallabs.dailysathi.data.Reminder
@@ -555,11 +557,16 @@ private fun TasksScreen(
 @Composable
 private fun CalendarScreen(reminders: List<Reminder>, hindi: Boolean, modifier: Modifier, onToggle: (Reminder) -> Unit) {
     val formatter = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
-    val todayStart = remember {
-        Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var todayStart by remember { mutableLongStateOf(startOfLocalDay(System.currentTimeMillis())) }
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                todayStart = startOfLocalDay(System.currentTimeMillis())
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     val dated = reminders.filter { it.dueAtMillis != null }
         .sortedBy { it.dueAtMillis }
@@ -1624,3 +1631,12 @@ private fun itemHindi(tab: MainTab): String = when (tab) {
     MainTab.SERVICES -> "सेवाएँ"
     MainTab.SETTINGS -> "सेटिंग्स"
 }
+
+
+internal fun startOfLocalDay(timeMillis: Long): Long = Calendar.getInstance().apply {
+    timeInMillis = timeMillis
+    set(Calendar.HOUR_OF_DAY, 0)
+    set(Calendar.MINUTE, 0)
+    set(Calendar.SECOND, 0)
+    set(Calendar.MILLISECOND, 0)
+}.timeInMillis
