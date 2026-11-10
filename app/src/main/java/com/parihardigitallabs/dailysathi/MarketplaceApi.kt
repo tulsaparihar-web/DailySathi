@@ -87,7 +87,6 @@ class MarketplaceApi {
     }
 
     suspend fun submitProvider(
-        session: MarketplaceSession,
         businessName: String,
         category: String,
         contactName: String,
@@ -97,7 +96,6 @@ class MarketplaceApi {
         description: String
     ) = withContext(Dispatchers.IO) {
         val body = JSONObject()
-            .put("owner_id", session.userId)
             .put("business_name", businessName)
             .put("category", category)
             .put("contact_name", contactName)
@@ -110,7 +108,6 @@ class MarketplaceApi {
             path = "/rest/v1/service_providers",
             method = "POST",
             body = body,
-            accessToken = session.accessToken,
             prefer = "return=minimal"
         )
     }
