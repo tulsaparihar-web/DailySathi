@@ -1555,7 +1555,17 @@ private fun AddReminderDialog(
     var recurrenceExpanded by remember { mutableStateOf(false) }
     val dateFormatter = remember { SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()) }
     fun chooseDateTime() {
-        val calendar = Calendar.getInstance().apply { add(Calendar.HOUR_OF_DAY, 1); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0) }
+        // When editing, reopen the currently saved date and time instead of
+        // unexpectedly resetting the picker to one hour from now.
+        val calendar = Calendar.getInstance().apply {
+            timeInMillis = dueAtMillis ?: System.currentTimeMillis()
+            if (dueAtMillis == null) {
+                add(Calendar.HOUR_OF_DAY, 1)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+        }
         DatePickerDialog(context, { _, year, month, day ->
             calendar.set(Calendar.YEAR, year); calendar.set(Calendar.MONTH, month); calendar.set(Calendar.DAY_OF_MONTH, day)
             TimePickerDialog(context, { _, hour, minute ->
