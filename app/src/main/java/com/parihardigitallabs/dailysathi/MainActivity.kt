@@ -41,7 +41,9 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parihardigitallabs.dailysathi.data.DailySathiDatabase
 import com.parihardigitallabs.dailysathi.data.Reminder
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private val DailyBlue = Color(0xFF2876C7)
 private val Navy = Color(0xFF123B50)
@@ -249,13 +251,38 @@ private fun DailySathiApp(database: DailySathiDatabase, openCalendarOnLaunch: Bo
                     restorePreview = null
                     scope.launch {
                         runCatching {
-                            // Commit the database replacement first; if it fails, existing alarms remain intact.
-                            database.reminderDao().replaceAll(itemsToRestore)
-                            if (restoreProviders) {
-                                val providerPrefs = context.getSharedPreferences("daily_sathi_services", android.content.Context.MODE_PRIVATE)
-                                check(providerPrefs.edit().putString("providers", ReminderBackup.encodeProviders(providersToRestore).toString()).commit()) {
-                                    "Unable to save restored service providers"
+                            val providerPrefs = if (restoreProviders) {
+                                context.getSharedPreferences("daily_sathi_services", android.content.Context.MODE_PRIVATE)
+                            } else null
+                            val previousProvidersJson = providerPrefs?.getString("providers", null)
+                            var providersCommitted = false
+                            try {
+                                // Persist the provider side first, off the UI thread. The Room
+                                // replacement is transactional; if it fails, roll providers back.
+                                if (providerPrefs != null) {
+                                    val providersJson = ReminderBackup.encodeProviders(providersToRestore).toString()
+                                    val saved = withContext(Dispatchers.IO) {
+                                        providerPrefs.edit().putString("providers", providersJson).commit()
+                                    }
+                                    check(saved) { "Unable to save restored service providers" }
+                                    providersCommitted = true
                                 }
+                                database.reminderDao().replaceAll(itemsToRestore)
+                            } catch (failure: Throwable) {
+                                if (providersCommitted && providerPrefs != null) {
+                                    try {
+                                        val rolledBack = withContext(Dispatchers.IO) {
+                                            val editor = providerPrefs.edit()
+                                            if (previousProvidersJson == null) editor.remove("providers")
+                                            else editor.putString("providers", previousProvidersJson)
+                                            editor.commit()
+                                        }
+                                        check(rolledBack) { "Unable to roll back the service directory" }
+                                    } catch (rollbackFailure: Throwable) {
+                                        failure.addSuppressed(rollbackFailure)
+                                    }
+                                }
+                                throw failure
                             }
                             reminders.forEach { ReminderAlarmScheduler.cancel(context, it.id) }
                             itemsToRestore.filter { !it.isCompleted }.forEach { item ->
