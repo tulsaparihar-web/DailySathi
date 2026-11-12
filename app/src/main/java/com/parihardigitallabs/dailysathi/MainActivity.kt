@@ -84,7 +84,15 @@ private fun DailySathiApp(database: DailySathiDatabase) {
     val scope = rememberCoroutineScope()
     val reminders by database.reminderDao().observeAll()
         .collectAsStateWithLifecycle(initialValue = emptyList())
-    var tab by remember { mutableStateOf(MainTab.HOME) }
+    var tab by remember {
+        mutableStateOf(
+            if ((context as? MainActivity)?.intent?.getBooleanExtra("open_calendar", false) == true) {
+                MainTab.CALENDAR
+            } else {
+                MainTab.HOME
+            }
+        )
+    }
     var showAdd by remember { mutableStateOf(false) }
     var editingReminder by remember { mutableStateOf<Reminder?>(null) }
     var reminderPendingDelete by remember { mutableStateOf<Reminder?>(null) }
