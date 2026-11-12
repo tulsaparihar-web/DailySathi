@@ -1587,9 +1587,26 @@ private fun SettingsScreen(
                     Spacer(Modifier.width(10.dp))
                     Column {
                         Text(if (hindi) "स्वैच्छिक दान" else "Voluntary donation", fontWeight = FontWeight.Medium)
-                        Text(if (hindi) "UPI दान विकल्प सेटअप होने के बाद उपलब्ध होगा।"
-                            else "UPI donations will be enabled after the official donation ID is configured.",
+                        Text("UPI: 9460915879@ptsbi", color = Slate.copy(alpha = .7f), fontSize = 12.sp)
+                        Text(if (hindi) "स्वैच्छिक सहयोग है; कोई प्रीमियम सुविधा नहीं मिलेगी।"
+                            else "Optional support only; donations do not unlock premium features.",
                             color = Slate.copy(alpha = .6f), fontSize = 11.sp)
+                        OutlinedButton(onClick = {
+                            val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                                as android.content.ClipboardManager
+                            clipboard.setPrimaryClip(
+                                android.content.ClipData.newPlainText("DailySathi donation UPI", "9460915879@ptsbi")
+                            )
+                            android.widget.Toast.makeText(
+                                context,
+                                if (hindi) "UPI ID कॉपी हो गई" else "UPI ID copied",
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                        }) {
+                            Icon(Icons.Default.ContentCopy, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text(if (hindi) "UPI ID कॉपी करें" else "Copy donation UPI ID")
+                        }
                     }
                 }
                 Divider(color = SoftBg)
