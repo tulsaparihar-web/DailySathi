@@ -126,7 +126,7 @@ Deno.serve(async (req) => {
     } else if (eventInsert.error || !eventInsert.data) {
       throw new Error("Could not record RTDN event");
     } else {
-      eventRecordId = eventRecordId;
+      eventRecordId = eventInsert.data.id;
     }
 
     const sub = notification.subscriptionNotification;
