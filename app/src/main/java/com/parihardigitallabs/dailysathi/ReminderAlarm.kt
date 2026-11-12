@@ -20,16 +20,19 @@ object ReminderAlarmScheduler {
     fun schedule(context: Context, reminderId: Long, dueAtMillis: Long) {
         if (dueAtMillis <= System.currentTimeMillis()) return
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val alarmIntent = pendingIntent(context, reminderId, dueAtMillis)
         alarmManager.setAndAllowWhileIdle(
             AlarmManager.RTC_WAKEUP,
             dueAtMillis,
-            pendingIntent(context, reminderId)
+            alarmIntent
         )
     }
 
     fun cancel(context: Context, reminderId: Long) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        alarmManager.cancel(pendingIntent(context, reminderId))
+        // Extras do not participate in PendingIntent identity; use any timestamp to
+        // retrieve and cancel the existing reminder alarm.
+        alarmManager.cancel(pendingIntent(context, reminderId, 0L))
         cancelNotification(context, reminderId)
     }
 
@@ -38,9 +41,10 @@ object ReminderAlarmScheduler {
         manager.cancel(reminderId.toInt())
     }
 
-    private fun pendingIntent(context: Context, reminderId: Long): PendingIntent {
+    private fun pendingIntent(context: Context, reminderId: Long, dueAtMillis: Long): PendingIntent {
         val intent = Intent(context, ReminderNotificationReceiver::class.java)
             .putExtra("reminder_id", reminderId)
+            .putExtra("due_at_millis", dueAtMillis)
         return PendingIntent.getBroadcast(
             context, reminderId.toInt(), intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -82,28 +86,35 @@ object ReminderAlarmScheduler {
 class ReminderNotificationReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val id = intent.getLongExtra("reminder_id", -1L)
-        if (id <= 0L) return
+        val expectedDueAtMillis = intent.getLongExtra("due_at_millis", -1L)
+        if (id <= 0L || expectedDueAtMillis <= 0L) return
         val pending = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val item = DailySathiDatabase.getInstance(context).reminderDao().getById(id)
-                if (item != null && !item.isCompleted) {
-                    ReminderAlarmScheduler.showNotification(context, item.title, item.note, item.id)
-                    val anchorDay = if (item.recurrenceDayOfMonth in 1..31) {
-                        item.recurrenceDayOfMonth
-                    } else {
-                        item.dueAtMillis?.let {
-                            java.util.Calendar.getInstance().apply { timeInMillis = it }
-                                .get(java.util.Calendar.DAY_OF_MONTH)
-                        } ?: 0
-                    }
-                    val nextDue = nextOccurrence(item.dueAtMillis, item.recurrence, recurrenceDayOfMonth = anchorDay)
-                    if (nextDue != null) {
-                        DailySathiDatabase.getInstance(context).reminderDao()
-                            .update(item.copy(dueAtMillis = nextDue, recurrenceDayOfMonth = anchorDay))
-                        ReminderAlarmScheduler.schedule(context, item.id, nextDue)
-                    }
+                val dao = DailySathiDatabase.getInstance(context).reminderDao()
+                // Ignore stale alarms after an edit, completion, or deletion.
+                val item = dao.getPendingAtDueTime(id, expectedDueAtMillis) ?: return@launch
+                val anchorDay = if (item.recurrenceDayOfMonth in 1..31) {
+                    item.recurrenceDayOfMonth
+                } else {
+                    java.util.Calendar.getInstance().apply { timeInMillis = expectedDueAtMillis }
+                        .get(java.util.Calendar.DAY_OF_MONTH)
                 }
+                val nextDue = nextOccurrence(
+                    expectedDueAtMillis,
+                    item.recurrence,
+                    recurrenceDayOfMonth = anchorDay
+                )
+                if (nextDue != null) {
+                    // Advance only if this exact due date is still pending. A concurrent
+                    // edit or completion wins and cannot be overwritten by this receiver.
+                    val updated = dao.advanceRecurringIfUnchanged(
+                        item.id, expectedDueAtMillis, nextDue, anchorDay
+                    )
+                    if (updated != 1) return@launch
+                    ReminderAlarmScheduler.schedule(context, item.id, nextDue)
+                }
+                ReminderAlarmScheduler.showNotification(context, item.title, item.note, item.id)
             } finally {
                 pending.finish()
             }
