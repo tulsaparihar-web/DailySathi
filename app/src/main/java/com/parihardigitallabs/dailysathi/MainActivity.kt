@@ -54,7 +54,11 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val database = DailySathiDatabase.getInstance(applicationContext)
-        setContent { DailySathiTheme { DailySathiApp(database) } }
+        setContent {
+            DailySathiTheme {
+                DailySathiApp(database, openCalendarOnLaunch = intent.getBooleanExtra("open_calendar", false))
+            }
+        }
     }
 }
 
@@ -79,19 +83,13 @@ private enum class MainTab(val label: String) {
 }
 
 @Composable
-private fun DailySathiApp(database: DailySathiDatabase) {
+private fun DailySathiApp(database: DailySathiDatabase, openCalendarOnLaunch: Boolean = false) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val reminders by database.reminderDao().observeAll()
         .collectAsStateWithLifecycle(initialValue = emptyList())
     var tab by remember {
-        mutableStateOf(
-            if ((context as? MainActivity)?.intent?.getBooleanExtra("open_calendar", false) == true) {
-                MainTab.CALENDAR
-            } else {
-                MainTab.HOME
-            }
-        )
+        mutableStateOf(if (openCalendarOnLaunch) MainTab.CALENDAR else MainTab.HOME)
     }
     var showAdd by remember { mutableStateOf(false) }
     var editingReminder by remember { mutableStateOf<Reminder?>(null) }
