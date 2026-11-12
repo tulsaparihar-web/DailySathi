@@ -36,6 +36,30 @@ Configure India availability and actual localized prices in Play Console. Confir
 - Provide account/data deletion and a privacy notice before production launch.
 - Keep profile writes behind a trusted Edge Function; the mobile client has read-only access to its own profile and subscription status.
 
+## Purchase verification Edge Function (source added)
+
+Function source: `functions/verify-play-purchase/index.ts`
+
+Deploy only after the Supabase project and Google Play Developer API access are ready:
+
+```bash
+supabase functions deploy verify-play-purchase
+supabase secrets set GOOGLE_PLAY_PACKAGE_NAME=com.parihardigitallabs.dailysathi
+supabase secrets set GOOGLE_PLAY_SERVICE_ACCOUNT_JSON='<service-account-json>'
+```
+
+The Supabase project supplies `SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` to Edge Functions. Keep all server secrets in Supabase secrets; do not add them to the Android project or GitHub source.
+
+The function:
+- Requires a valid signed-in Supabase user.
+- Accepts only the configured product and known base-plan IDs.
+- Calls Google Play Developer API and validates product, base plan, purchase state, expiry and account binding.
+- Requires `obfuscatedExternalAccountId` to equal lowercase SHA-256 hex of the authenticated Supabase user UUID. The Android Billing integration must set this value when launching the purchase flow.
+- Acknowledges eligible active purchases and writes the verified subscription projection plus an audit event.
+- Stores only a SHA-256 fingerprint of the purchase token in the current schema; it never returns or logs the raw token.
+
+The function source is a first server-side verification step, not a production-ready complete billing system. It has not been deployed against a live Play Console or Supabase project. Add and test RTDN handling, encrypted token retention for reconciliation, immutable financial/order records, and operational monitoring before enabling live purchases. A canceled auto-renewing subscription retains access until its verified paid-through expiry.
+
 ## Required server-side functions (next implementation)
 
 1. `verify-play-purchase`: accept authenticated user ID, product ID, base-plan ID and purchase token from the Android Billing Library; verify the token with the Google Play Developer API; check package name, product/base plan, purchase state, expiry and account binding; acknowledge eligible purchases; persist only verified entitlement. Store a SHA-256 token fingerprint in the audit projection; if the raw token must be retained for later Google API calls, encrypt it server-side and never return it to the client.
