@@ -1521,7 +1521,16 @@ private fun SettingsScreen(
     hindi: Boolean, onLanguageChange: (Boolean) -> Unit, modifier: Modifier,
     onExport: () -> Unit, onImport: () -> Unit
 ) {
-    Column(modifier.fillMaxSize().padding(22.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+    val context = LocalContext.current
+    var showFeedback by remember { mutableStateOf(false) }
+    var feedbackType by remember { mutableStateOf("Suggestion") }
+    var feedbackMessage by remember { mutableStateOf("") }
+    var feedbackError by remember { mutableStateOf<String?>(null) }
+
+    Column(
+        modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(22.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp)
+    ) {
         Text(if (hindi) "सेटिंग्स" else "Settings",
             fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Navy)
         Surface(color = Color.White, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
@@ -1555,9 +1564,123 @@ private fun SettingsScreen(
                     color = Color(0xFFB45309), fontSize = 11.sp)
             }
         }
+        Surface(color = Color.White, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(if (hindi) "DailySathi को सपोर्ट करें" else "Support DailySathi",
+                    fontWeight = FontWeight.SemiBold, color = Navy)
+                Text(if (hindi) "आपका सहयोग ऐप को बेहतर बनाने और नए फीचर विकसित करने में मदद करेगा।"
+                    else "Your support helps us improve the app and build useful new features.",
+                    color = Slate.copy(alpha = .7f), fontSize = 12.sp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Star, contentDescription = null, tint = DailyBlue)
+                    Spacer(Modifier.width(10.dp))
+                    Column {
+                        Text(if (hindi) "प्रीमियम सदस्यता" else "Premium subscription", fontWeight = FontWeight.Medium)
+                        Text(if (hindi) "जल्द उपलब्ध — Google Play Billing के माध्यम से"
+                            else "Coming soon — subscriptions through Google Play Billing",
+                            color = Slate.copy(alpha = .6f), fontSize = 11.sp)
+                    }
+                }
+                Divider(color = SoftBg)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Favorite, contentDescription = null, tint = Color(0xFFB45309))
+                    Spacer(Modifier.width(10.dp))
+                    Column {
+                        Text(if (hindi) "स्वैच्छिक दान" else "Voluntary donation", fontWeight = FontWeight.Medium)
+                        Text(if (hindi) "UPI दान विकल्प सेटअप होने के बाद उपलब्ध होगा।"
+                            else "UPI donations will be enabled after the official donation ID is configured.",
+                            color = Slate.copy(alpha = .6f), fontSize = 11.sp)
+                    }
+                }
+                Divider(color = SoftBg)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Campaign, contentDescription = null, tint = Teal)
+                    Spacer(Modifier.width(10.dp))
+                    Column {
+                        Text(if (hindi) "विज्ञापन" else "Advertisements", fontWeight = FontWeight.Medium)
+                        Text(if (hindi) "विज्ञापन अभी सक्रिय नहीं हैं।"
+                            else "Ads are not enabled in this version. An ad-supported free tier is planned.",
+                            color = Slate.copy(alpha = .6f), fontSize = 11.sp)
+                    }
+                }
+            }
+        }
+        Surface(color = Color.White, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(if (hindi) "प्रतिक्रिया और सुझाव" else "Feedback & Suggestions",
+                    fontWeight = FontWeight.SemiBold, color = Navy)
+                Text(if (hindi) "बग रिपोर्ट करें, नया सुझाव दें या अपना अनुभव साझा करें।"
+                    else "Report a bug, suggest a feature, or tell us about your experience. We would love to hear from you.",
+                    color = Slate.copy(alpha = .65f), fontSize = 12.sp)
+                Button(onClick = { showFeedback = true }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.Feedback, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (hindi) "प्रतिक्रिया भेजें" else "Send feedback")
+                }
+                Text("Support: tulsaparihar@gmail.com", color = Slate.copy(alpha = .6f), fontSize = 11.sp)
+            }
+        }
         Text("Parihar Digital Labs", fontWeight = FontWeight.Bold, color = Navy)
         Text("Technology that makes life easier.", color = Slate.copy(alpha = .65f))
         Text("DailySathi v0.1.0", color = Slate.copy(alpha = .5f), fontSize = 12.sp)
+    }
+
+    if (showFeedback) {
+        AlertDialog(
+            onDismissRequest = { showFeedback = false; feedbackError = null },
+            title = { Text(if (hindi) "अपनी प्रतिक्रिया भेजें" else "Send us your feedback") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(if (hindi) "आप किस बारे में लिखना चाहते हैं?" else "What would you like to share?",
+                        color = Slate.copy(alpha = .7f), fontSize = 12.sp)
+                    listOf("Suggestion", "Bug report", "General feedback").forEach { option ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = feedbackType == option, onClick = { feedbackType = option })
+                            Text(when (option) {
+                                "Bug report" -> if (hindi) "बग रिपोर्ट" else "Bug report"
+                                "General feedback" -> if (hindi) "सामान्य प्रतिक्रिया" else "General feedback"
+                                else -> if (hindi) "सुझाव" else "Suggestion"
+                            }, fontSize = 13.sp)
+                        }
+                    }
+                    OutlinedTextField(
+                        value = feedbackMessage,
+                        onValueChange = { feedbackMessage = it; feedbackError = null },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(if (hindi) "अपना संदेश लिखें" else "Your message") },
+                        minLines = 4,
+                        maxLines = 6
+                    )
+                    feedbackError?.let { Text(it, color = Color(0xFFB45309), fontSize = 12.sp) }
+                    Text(if (hindi) "आपका ईमेल ऐप खुलेगा ताकि आप संदेश भेज सकें।"
+                        else "Your email app will open so you can review and send the message.",
+                        color = Slate.copy(alpha = .6f), fontSize = 11.sp)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val message = feedbackMessage.trim()
+                    if (message.isBlank()) {
+                        feedbackError = if (hindi) "कृपया अपना संदेश लिखें।" else "Please enter your message."
+                    } else {
+                        val subject = "DailySathi $feedbackType"
+                        val emailIntent = Intent(Intent.ACTION_SENDTO).apply {
+                            data = Uri.parse("mailto:tulsaparihar@gmail.com")
+                            putExtra(Intent.EXTRA_SUBJECT, subject)
+                            putExtra(Intent.EXTRA_TEXT, message)
+                        }
+                        runCatching { context.startActivity(emailIntent) }
+                            .onSuccess { showFeedback = false; feedbackMessage = ""; feedbackError = null }
+                            .onFailure { feedbackError = if (hindi) "ईमेल ऐप उपलब्ध नहीं है। कृपया tulsaparihar@gmail.com पर सीधे ईमेल करें।" else "No email app found. Please email tulsaparihar@gmail.com directly." }
+                    }
+                }) { Text(if (hindi) "ईमेल से भेजें" else "Continue to email") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showFeedback = false; feedbackError = null }) {
+                    Text(if (hindi) "रद्द करें" else "Cancel")
+                }
+            }
+        )
     }
 }
 
