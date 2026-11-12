@@ -34,6 +34,10 @@ interface ReminderDao {
     @Insert
     suspend fun insert(reminder: Reminder): Long
 
+    // Change completion without writing stale reminder fields back over a concurrent alarm update.
+    @Query("UPDATE reminders SET isCompleted = :isCompleted WHERE id = :id")
+    suspend fun setCompleted(id: Long, isCompleted: Boolean): Int
+
     @Update
     suspend fun update(reminder: Reminder)
 
