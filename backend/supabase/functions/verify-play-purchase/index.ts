@@ -153,7 +153,7 @@ Deno.serve(async (req) => {
     };
     const purchaseState = stateMap[purchase.subscriptionState] || "revoked";
     const expiry = line.expiryTime ? new Date(line.expiryTime).toISOString() : null;
-    const isEntitled = ["active", "grace_period"].includes(purchaseState) &&
+    const isEntitled = ["active", "grace_period", "canceled"].includes(purchaseState) &&
       expiry !== null && Date.parse(expiry) > Date.now();
     const tokenHash = await sha256Hex(purchaseToken);
     const orderId = typeof purchase.latestOrderId === "string" ? purchase.latestOrderId : null;
