@@ -255,21 +255,23 @@ private fun DailySathiApp(database: DailySathiDatabase, openCalendarOnLaunch: Bo
                                 context.getSharedPreferences("daily_sathi_services", android.content.Context.MODE_PRIVATE)
                             } else null
                             val previousProvidersJson = providerPrefs?.getString("providers", null)
-                            var providersCommitted = false
+                            var providersWriteAttempted = false
                             try {
-                                // Persist the provider side first, off the UI thread. The Room
-                                // replacement is transactional; if it fails, roll providers back.
+                                // Persist the provider side first, off the UI thread. If either persistence
+                                // reports failure or Room replacement fails, restore the prior JSON.
                                 if (providerPrefs != null) {
                                     val providersJson = ReminderBackup.encodeProviders(providersToRestore).toString()
+                                    // SharedPreferences may update its in-memory map even when commit()
+                                    // returns false, so rollback after every attempted write.
+                                    providersWriteAttempted = true
                                     val saved = withContext(Dispatchers.IO) {
                                         providerPrefs.edit().putString("providers", providersJson).commit()
                                     }
                                     check(saved) { "Unable to save restored service providers" }
-                                    providersCommitted = true
                                 }
                                 database.reminderDao().replaceAll(itemsToRestore)
                             } catch (failure: Throwable) {
-                                if (providersCommitted && providerPrefs != null) {
+                                if (providersWriteAttempted && providerPrefs != null) {
                                     try {
                                         val rolledBack = withContext(Dispatchers.IO) {
                                             val editor = providerPrefs.edit()
