@@ -195,7 +195,7 @@ Deno.serve(async (req) => {
         ? "acknowledged" : acknowledgementState,
       started_at: purchase.startTime ? new Date(purchase.startTime).toISOString() : null,
       expires_at: expiry,
-      auto_renewing: line.autoRenewingPlan != null,
+      auto_renewing: line.autoRenewingPlan?.autoRenewEnabled === true,
       last_verified_at: new Date().toISOString(),
     };
     const write = existing
