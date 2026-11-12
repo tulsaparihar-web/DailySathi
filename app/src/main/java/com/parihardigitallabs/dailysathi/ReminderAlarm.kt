@@ -30,6 +30,12 @@ object ReminderAlarmScheduler {
     fun cancel(context: Context, reminderId: Long) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         alarmManager.cancel(pendingIntent(context, reminderId))
+        cancelNotification(context, reminderId)
+    }
+
+    fun cancelNotification(context: Context, reminderId: Long) {
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.cancel(reminderId.toInt())
     }
 
     private fun pendingIntent(context: Context, reminderId: Long): PendingIntent {
@@ -45,11 +51,15 @@ object ReminderAlarmScheduler {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             manager.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "Reminders", NotificationManager.IMPORTANCE_DEFAULT)
+                NotificationChannel(CHANNEL_ID, "Reminders", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = "Notifications for your DailySathi reminders"
+            }
             )
         }
         val openApp = PendingIntent.getActivity(
-            context, 0, Intent(context, MainActivity::class.java),
+            context, reminderId.toInt(), Intent(context, MainActivity::class.java)
+                .putExtra("open_calendar", true)
+                .putExtra("reminder_id", reminderId),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
@@ -58,6 +68,7 @@ object ReminderAlarmScheduler {
             .setContentText(note.ifBlank { "Your DailySathi reminder is due." })
             .setStyle(NotificationCompat.BigTextStyle().bigText(note.ifBlank { "Your DailySathi reminder is due." }))
             .setContentIntent(openApp)
+            .setOnlyAlertOnce(true)
             .setAutoCancel(true)
             .build()
         try {
