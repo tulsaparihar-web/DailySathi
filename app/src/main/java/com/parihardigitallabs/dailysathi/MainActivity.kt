@@ -97,13 +97,9 @@ private fun DailySathiApp(database: DailySathiDatabase) {
         if (uri != null) scope.launch {
             runCatching {
                 val providerPrefs = context.getSharedPreferences("daily_sathi_services", android.content.Context.MODE_PRIVATE)
-                val savedProviders = org.json.JSONArray(providerPrefs.getString("providers", "[]") ?: "[]")
-                val providerList = (0 until savedProviders.length()).map { index ->
-                    val item = savedProviders.getJSONObject(index)
-                    LocalServiceProvider(item.getLong("id"), item.getString("name"), item.getString("service"),
-                        item.getString("phone"), item.optString("area"), item.optString("details"),
-                        item.optBoolean("isFavorite", false), item.optInt("userRating", 0), item.optString("feedback"))
-                }
+                val providerList = ReminderBackup.decodeProviders(
+                    providerPrefs.getString("providers", "[]") ?: "[]"
+                )
                 val json = ReminderBackup.encode(reminders, providerList)
                 context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(json) }
                     ?: error("Unable to write backup file")
@@ -739,6 +735,20 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
             FilterChip(selected = selectedMode == "MARKETPLACE", onClick = { selectedMode = "MARKETPLACE" },
                 label = { Text(if (hindi) "मार्केटप्लेस" else "Marketplace") },
                 leadingIcon = { Icon(Icons.Default.Storefront, contentDescription = null) })
+        }
+        if (providerLoadError != null && selectedMode == "DIRECTORY") {
+            Surface(
+                color = Color(0xFFFFF4E5),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)
+            ) {
+                Text(
+                    providerLoadError ?: "",
+                    color = Color(0xFF8A4B08),
+                    modifier = Modifier.padding(12.dp),
+                    fontSize = 13.sp
+                )
+            }
         }
         if (selectedMode == "MAPS") {
             OutlinedTextField(
