@@ -16,6 +16,18 @@ interface ReminderDao {
     @Query("SELECT * FROM reminders WHERE id = :id LIMIT 1")
     suspend fun getById(id: Long): Reminder?
 
+    @Query("SELECT * FROM reminders WHERE id = :id AND isCompleted = 0 AND dueAtMillis = :expectedDueAtMillis LIMIT 1")
+    suspend fun getPendingAtDueTime(id: Long, expectedDueAtMillis: Long): Reminder?
+
+    // Compare-and-set prevents a delayed alarm from overwriting a newer edit or completion.
+    @Query("UPDATE reminders SET dueAtMillis = :nextDueAtMillis, recurrenceDayOfMonth = :anchorDay WHERE id = :id AND isCompleted = 0 AND dueAtMillis = :expectedDueAtMillis")
+    suspend fun advanceRecurringIfUnchanged(
+        id: Long,
+        expectedDueAtMillis: Long,
+        nextDueAtMillis: Long,
+        anchorDay: Int
+    ): Int
+
     @Query("SELECT * FROM reminders WHERE isCompleted = 0 AND dueAtMillis IS NOT NULL")
     suspend fun getPendingWithDueDates(): List<Reminder>
 
