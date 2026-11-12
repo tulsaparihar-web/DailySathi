@@ -518,6 +518,7 @@ private fun TasksScreen(
     reminders: List<Reminder>, hindi: Boolean, modifier: Modifier,
     onToggle: (Reminder) -> Unit, onDelete: (Reminder) -> Unit, onEdit: (Reminder) -> Unit
 ) {
+    val reminderDateFormatter = remember { SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()) }
     Column(modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 20.dp)) {
         Text(if (hindi) "कार्य और रिमाइंडर" else "Tasks & reminders",
             fontSize = 25.sp, fontWeight = FontWeight.Bold, color = Navy)
@@ -536,7 +537,7 @@ private fun TasksScreen(
                             Column(Modifier.weight(1f)) {
                                 Text(reminder.title, fontWeight = FontWeight.Medium, color = Navy)
                                 reminder.dueAtMillis?.let {
-                                    Text(SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()).format(Date(it)),
+                                    Text(reminderDateFormatter.format(Date(it)),
                                         fontSize = 11.sp, color = Slate.copy(alpha = .6f))
                                 }
                                 ReminderExtraDetails(reminder, hindi)
@@ -570,10 +571,15 @@ private fun CalendarScreen(reminders: List<Reminder>, hindi: Boolean, modifier: 
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    val dated = reminders.filter { it.dueAtMillis != null }
-        .sortedBy { it.dueAtMillis }
-        .groupBy { formatter.format(Date(it.dueAtMillis!!)) }
-    val undated = reminders.filter { it.dueAtMillis == null }
+    // Rebuild this view model only when the reminder list changes, not for unrelated UI state.
+    val dated = remember(reminders, formatter) {
+        reminders.asSequence()
+            .filter { it.dueAtMillis != null }
+            .sortedBy { it.dueAtMillis }
+            .groupBy { formatter.format(Date(it.dueAtMillis!!)) }
+    }
+    val undated = remember(reminders) { reminders.filter { it.dueAtMillis == null } }
+    val calendarTimeFormatter = remember { SimpleDateFormat("hh:mm a", Locale.getDefault()) }
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 20.dp, bottom = 100.dp),
@@ -621,7 +627,7 @@ private fun CalendarScreen(reminders: List<Reminder>, hindi: Boolean, modifier: 
                             Checkbox(item.isCompleted, { onToggle(item) })
                             Column(Modifier.weight(1f)) {
                                 Text(item.title, fontWeight = FontWeight.SemiBold, color = Navy)
-                                Text(SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date(item.dueAtMillis!!)),
+                                Text(calendarTimeFormatter.format(Date(item.dueAtMillis!!)),
                                     fontSize = 12.sp, color = Slate.copy(alpha = .65f))
                                 ReminderExtraDetails(item, hindi)
                             }
@@ -692,7 +698,7 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
     var providers by remember {
         mutableStateOf(providerLoadResult.getOrDefault(emptyList()))
     }
-    val categories = listOf(
+    val categories = remember { listOf(
         Triple("Electrician", "इलेक्ट्रीशियन", Icons.Default.ElectricalServices),
         Triple("Plumber", "प्लंबर", Icons.Default.Plumbing),
         Triple("Mason", "राजमिस्त्री", Icons.Default.Construction),
@@ -702,12 +708,15 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
         Triple("AC repair", "AC रिपेयर", Icons.Default.AcUnit),
         Triple("Appliance repair", "उपकरण मरम्मत", Icons.Default.HomeRepairService),
         Triple("Driver", "ड्राइवर", Icons.Default.DirectionsCar)
-    )
-    val filteredProviders = providers.filter { provider ->
+    ) }
+    val filteredProviders = remember(providers, favoritesOnly, providerCategory, providerQuery) {
+        val query = providerQuery.trim()
+        providers.filter { provider ->
         (!favoritesOnly || provider.isFavorite) &&
             (providerCategory == "All" || provider.service.equals(providerCategory, ignoreCase = true)) &&
-            (providerQuery.isBlank() || listOf(provider.name, provider.service, provider.area, provider.details)
-                .any { it.contains(providerQuery.trim(), ignoreCase = true) })
+            (query.isBlank() || listOf(provider.name, provider.service, provider.area, provider.details)
+                .any { it.contains(query, ignoreCase = true) })
+        }
     }
     fun saveProviders(items: List<LocalServiceProvider>) {
         if (providerLoadError != null) {
