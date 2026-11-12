@@ -5,6 +5,7 @@ import {
 } from "./subscription-state.ts";
 
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { duplicateEventAction } from "./rtdn-idempotency.ts";
 
 Deno.test("maps all known Google Play subscription states", () => {
   const cases: [string, string][] = [
@@ -57,4 +58,11 @@ Deno.test("only the approved product and base plans are accepted", () => {
   assertEquals(isAllowedDailySathiPlan("other_product", "monthly"), false);
   assertEquals(isAllowedDailySathiPlan("dailysathi_premium", "weekly"), false);
   assertEquals(isAllowedDailySathiPlan(null, "annual"), false);
+});
+
+Deno.test("RTDN duplicate delivery acknowledges only already-processed events", () => {
+  assertEquals(duplicateEventAction(true), "acknowledge");
+  assertEquals(duplicateEventAction(false), "resume");
+  assertEquals(duplicateEventAction(null), "resume");
+  assertEquals(duplicateEventAction(undefined), "resume");
 });
