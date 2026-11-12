@@ -58,7 +58,7 @@ The function:
 - Acknowledges eligible active purchases and writes the verified subscription projection plus an audit event.
 - Stores only a SHA-256 fingerprint of the purchase token in the current schema; it never returns or logs the raw token.
 
-The function source is a first server-side verification step, not a production-ready complete billing system. It has not been deployed against a live Play Console or Supabase project. Add and test RTDN handling, encrypted token retention for reconciliation, immutable financial/order records, and operational monitoring before enabling live purchases. A canceled auto-renewing subscription retains access until its verified paid-through expiry.
+The function source is a first server-side verification step, not a production-ready complete billing system. It has not been deployed against a live Play Console or Supabase project. A canceled auto-renewing subscription retains access until its verified paid-through expiry. Auto-renew status is taken from Google's explicit autoRenewEnabled field, not merely the presence of an auto-renew plan.
 
 ## Required server-side functions (next implementation)
 
