@@ -1,0 +1,9 @@
+project_id = "dailysathi"
+
+[functions.verify-play-purchase]
+verify_jwt = true
+
+# Pub/Sub supplies a Google OIDC identity token, not a Supabase user JWT.
+# The function validates its signature, issuer, audience and service-account email itself.
+[functions.google-play-rtdn]
+verify_jwt = false
