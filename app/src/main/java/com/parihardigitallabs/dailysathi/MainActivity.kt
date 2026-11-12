@@ -168,9 +168,17 @@ private fun DailySathiApp(database: DailySathiDatabase, openCalendarOnLaunch: Bo
                 onNotifications = { tab = MainTab.CALENDAR },
                 onToggle = { item ->
                     scope.launch {
-                        database.reminderDao().update(item.copy(isCompleted = !item.isCompleted))
-                        if (item.isCompleted) item.dueAtMillis?.let { ReminderAlarmScheduler.schedule(context, item.id, it) }
-                        else ReminderAlarmScheduler.cancel(context, item.id)
+                        val markCompleted = !item.isCompleted
+                        database.reminderDao().setCompleted(item.id, markCompleted)
+                        if (markCompleted) {
+                            ReminderAlarmScheduler.cancel(context, item.id)
+                        } else {
+                            // Read the latest due date: a recurring alarm may have advanced
+                            // it after this list item was originally composed.
+                            database.reminderDao().getById(item.id)?.dueAtMillis?.let {
+                                ReminderAlarmScheduler.schedule(context, item.id, it)
+                            }
+                        }
                     }
                 }
             )
@@ -178,9 +186,17 @@ private fun DailySathiApp(database: DailySathiDatabase, openCalendarOnLaunch: Bo
                 reminders = reminders, hindi = hindi, modifier = Modifier.padding(padding),
                 onToggle = { item ->
                     scope.launch {
-                        database.reminderDao().update(item.copy(isCompleted = !item.isCompleted))
-                        if (item.isCompleted) item.dueAtMillis?.let { ReminderAlarmScheduler.schedule(context, item.id, it) }
-                        else ReminderAlarmScheduler.cancel(context, item.id)
+                        val markCompleted = !item.isCompleted
+                        database.reminderDao().setCompleted(item.id, markCompleted)
+                        if (markCompleted) {
+                            ReminderAlarmScheduler.cancel(context, item.id)
+                        } else {
+                            // Read the latest due date: a recurring alarm may have advanced
+                            // it after this list item was originally composed.
+                            database.reminderDao().getById(item.id)?.dueAtMillis?.let {
+                                ReminderAlarmScheduler.schedule(context, item.id, it)
+                            }
+                        }
                     }
                 }
             )
@@ -188,9 +204,17 @@ private fun DailySathiApp(database: DailySathiDatabase, openCalendarOnLaunch: Bo
                 reminders, hindi, Modifier.padding(padding),
                 onToggle = { item ->
                     scope.launch {
-                        database.reminderDao().update(item.copy(isCompleted = !item.isCompleted))
-                        if (item.isCompleted) item.dueAtMillis?.let { ReminderAlarmScheduler.schedule(context, item.id, it) }
-                        else ReminderAlarmScheduler.cancel(context, item.id)
+                        val markCompleted = !item.isCompleted
+                        database.reminderDao().setCompleted(item.id, markCompleted)
+                        if (markCompleted) {
+                            ReminderAlarmScheduler.cancel(context, item.id)
+                        } else {
+                            // Read the latest due date: a recurring alarm may have advanced
+                            // it after this list item was originally composed.
+                            database.reminderDao().getById(item.id)?.dueAtMillis?.let {
+                                ReminderAlarmScheduler.schedule(context, item.id, it)
+                            }
+                        }
                     }
                 },
                 onDelete = { item -> reminderPendingDelete = item },
