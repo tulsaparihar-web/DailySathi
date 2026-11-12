@@ -51,6 +51,36 @@ internal object ReminderBackup {
         return items
     }
 
+
+    fun decodeProviders(json: String): List<LocalServiceProvider> {
+        val items = JSONArray(json)
+        val providers = (0 until items.length()).map { index ->
+            val item = items.getJSONObject(index)
+            val name = item.getString("name").trim()
+            val service = item.getString("service").trim()
+            val phone = item.getString("phone").trim()
+            require(name.isNotBlank() && service.isNotBlank() && phone.isNotBlank()) {
+                "Provider name, service and phone are required"
+            }
+            val rating = item.optInt("userRating", 0)
+            require(rating in 0..5) { "Invalid provider rating" }
+            LocalServiceProvider(
+                id = item.getLong("id"),
+                name = name,
+                service = service,
+                phone = phone,
+                area = item.optString("area"),
+                details = item.optString("details"),
+                isFavorite = item.optBoolean("isFavorite", false),
+                userRating = rating,
+                feedback = item.optString("feedback")
+            )
+        }
+        require(providers.all { it.id > 0L }) { "Invalid provider ID" }
+        require(providers.map { it.id }.distinct().size == providers.size) { "Duplicate provider IDs" }
+        return providers
+    }
+
     fun decode(json: String): DailySathiBackup {
         val root = JSONObject(json)
         require(root.optString("app") == "DailySathi") { "Not a DailySathi backup file" }
@@ -90,31 +120,7 @@ internal object ReminderBackup {
         }
 
         val hasProviders = version >= 2 && root.has("providers")
-        val providerItems = if (hasProviders) root.getJSONArray("providers") else JSONArray()
-        val providers = (0 until providerItems.length()).map { index ->
-            val item = providerItems.getJSONObject(index)
-            val name = item.getString("name").trim()
-            val service = item.getString("service").trim()
-            val phone = item.getString("phone").trim()
-            require(name.isNotBlank() && service.isNotBlank() && phone.isNotBlank()) {
-                "Provider name, service and phone are required"
-            }
-            val rating = item.optInt("userRating", 0)
-            require(rating in 0..5) { "Invalid provider rating" }
-            LocalServiceProvider(
-                id = item.getLong("id"),
-                name = name,
-                service = service,
-                phone = phone,
-                area = item.optString("area"),
-                details = item.optString("details"),
-                isFavorite = item.optBoolean("isFavorite", false),
-                userRating = rating,
-                feedback = item.optString("feedback")
-            )
-        }
-        require(providers.all { it.id > 0L }) { "Invalid provider ID in backup" }
-        require(providers.map { it.id }.distinct().size == providers.size) { "Duplicate provider IDs in backup" }
+        val providers = if (hasProviders) decodeProviders(root.getJSONArray("providers").toString()) else emptyList()
         return DailySathiBackup(restored, providers, hasProviders)
     }
 }
