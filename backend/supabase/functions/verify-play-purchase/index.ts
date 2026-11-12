@@ -9,6 +9,7 @@
 // Never trust client-supplied price, expiry, order status, user ID, or entitlement.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { hasPremiumEntitlement, isAllowedDailySathiPlan, mapGoogleSubscriptionState } from "../_shared/subscription-state.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -112,8 +113,7 @@ Deno.serve(async (req) => {
     const productId = input?.productId;
     const basePlanId = input?.basePlanId;
     const purchaseToken = input?.purchaseToken;
-    if (productId !== "dailysathi_premium" ||
-        !["monthly", "six_months", "annual"].includes(basePlanId) ||
+    if (!isAllowedDailySathiPlan(productId, basePlanId) ||
         typeof purchaseToken !== "string" || purchaseToken.length < 20 || purchaseToken.length > 4096) {
       return json(400, { error: "Invalid purchase details" });
     }
@@ -144,19 +144,9 @@ Deno.serve(async (req) => {
       return json(403, { error: "Purchase is not linked to this DailySathi account" });
     }
 
-    const stateMap: Record<string, string> = {
-      SUBSCRIPTION_STATE_PENDING: "pending",
-      SUBSCRIPTION_STATE_ACTIVE: "active",
-      SUBSCRIPTION_STATE_IN_GRACE_PERIOD: "grace_period",
-      SUBSCRIPTION_STATE_ON_HOLD: "on_hold",
-      SUBSCRIPTION_STATE_PAUSED: "paused",
-      SUBSCRIPTION_STATE_CANCELED: "canceled",
-      SUBSCRIPTION_STATE_EXPIRED: "expired",
-    };
-    const purchaseState = stateMap[purchase.subscriptionState] || "revoked";
+    const purchaseState = mapGoogleSubscriptionState(purchase.subscriptionState);
     const expiry = line.expiryTime ? new Date(line.expiryTime).toISOString() : null;
-    const isEntitled = ["active", "grace_period", "canceled"].includes(purchaseState) &&
-      expiry !== null && Date.parse(expiry) > Date.now();
+    const isEntitled = hasPremiumEntitlement(purchaseState, expiry);
     const tokenHash = await sha256Hex(purchaseToken);
     const orderId = typeof purchase.latestOrderId === "string" ? purchase.latestOrderId : null;
     const acknowledgementState = purchase.acknowledgementState === "ACKNOWLEDGEMENT_STATE_ACKNOWLEDGED"
