@@ -18,7 +18,12 @@ object ReminderAlarmScheduler {
     private const val CHANNEL_ID = "dailysathi_reminders"
 
     fun schedule(context: Context, reminderId: Long, dueAtMillis: Long) {
-        if (dueAtMillis <= System.currentTimeMillis()) return
+        if (dueAtMillis <= System.currentTimeMillis()) {
+            // Do not leave an older scheduled alarm alive when a reminder is moved
+            // into the past or a recovery pass encounters an already-due item.
+            cancelAlarm(context, reminderId)
+            return
+        }
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val alarmIntent = pendingIntent(context, reminderId, dueAtMillis)
         alarmManager.setAndAllowWhileIdle(
@@ -28,11 +33,15 @@ object ReminderAlarmScheduler {
         )
     }
 
-    fun cancel(context: Context, reminderId: Long) {
+    private fun cancelAlarm(context: Context, reminderId: Long) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         // Extras do not participate in PendingIntent identity; use any timestamp to
         // retrieve and cancel the existing reminder alarm.
         alarmManager.cancel(pendingIntent(context, reminderId, 0L))
+    }
+
+    fun cancel(context: Context, reminderId: Long) {
+        cancelAlarm(context, reminderId)
         cancelNotification(context, reminderId)
     }
 
