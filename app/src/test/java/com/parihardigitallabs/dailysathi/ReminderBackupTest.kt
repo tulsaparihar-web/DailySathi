@@ -158,4 +158,49 @@ class ReminderBackupTest {
         assertTrue(failure is IllegalArgumentException)
     }
 
+    @Test
+    fun malformedProviderDirectoryIsRejectedInsteadOfBecomingEmpty() {
+        val invalid = org.json.JSONArray().put(
+            JSONObject()
+                .put("id", 1L)
+                .put("name", "   ")
+                .put("service", "Electrician")
+                .put("phone", "1234567890")
+        )
+
+        val failure = runCatching { ReminderBackup.decodeProviders(invalid.toString()) }.exceptionOrNull()
+
+        assertTrue(failure is IllegalArgumentException)
+    }
+
+    @Test
+    fun duplicateProviderIdsAreRejected() {
+        val provider = JSONObject()
+            .put("id", 9L)
+            .put("name", "Local plumber")
+            .put("service", "Plumber")
+            .put("phone", "9876543210")
+        val invalid = org.json.JSONArray().put(provider).put(JSONObject(provider.toString()))
+
+        val failure = runCatching { ReminderBackup.decodeProviders(invalid.toString()) }.exceptionOrNull()
+
+        assertTrue(failure is IllegalArgumentException)
+    }
+
+    @Test
+    fun providerRatingOutsideZeroToFiveIsRejected() {
+        val invalid = org.json.JSONArray().put(
+            JSONObject()
+                .put("id", 10L)
+                .put("name", "Local electrician")
+                .put("service", "Electrician")
+                .put("phone", "9876543210")
+                .put("userRating", 6)
+        )
+
+        val failure = runCatching { ReminderBackup.decodeProviders(invalid.toString()) }.exceptionOrNull()
+
+        assertTrue(failure is IllegalArgumentException)
+    }
+
 }
