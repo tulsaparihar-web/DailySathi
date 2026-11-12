@@ -60,11 +60,18 @@ The function:
 
 The function source is a first server-side verification step, not a production-ready complete billing system. It has not been deployed against a live Play Console or Supabase project. A canceled auto-renewing subscription retains access until its verified paid-through expiry. Auto-renew status is taken from Google's explicit autoRenewEnabled field, not merely the presence of an auto-renew plan.
 
-## Required server-side functions (next implementation)
+## Server-side implementation status and remaining work
 
-1. `verify-play-purchase`: accept authenticated user ID, product ID, base-plan ID and purchase token from the Android Billing Library; verify the token with the Google Play Developer API; check package name, product/base plan, purchase state, expiry and account binding; acknowledge eligible purchases; persist only verified entitlement. Store a SHA-256 token fingerprint in the audit projection; if the raw token must be retained for later Google API calls, encrypt it server-side and never return it to the client.
-2. `google-play-rtdn`: receive Pub/Sub push notifications, validate the push/authentication envelope, deduplicate message/event IDs, then re-query Google Play Developer API. Treat notifications as triggers, not proof of entitlement.
-3. `refresh-subscription`: periodically re-check active subscriptions and reconcile cancellation, renewal, grace period, hold, pause, expiry and revocation.
+Source code is present for the first two server-side functions:
+
+1. `verify-play-purchase` verifies an authenticated purchase against Google Play, checks product/base plan and account binding, acknowledges eligible purchases, and writes the current subscription projection plus an audit event.
+2. `google-play-rtdn` validates Pub/Sub OIDC identity, deduplicates message IDs, and re-queries Google Play before updating a linked subscription. Unprocessed events can be resumed when Pub/Sub retries after a transient failure.
+
+Both functions are source-only until deployed with real project credentials. Their automated Deno type checks and shared subscription-state tests run in GitHub Actions; this is not a substitute for live Google Play integration tests.
+
+Remaining production work:
+
+3. `refresh-subscription`: periodically re-check active subscriptions and reconcile renewal, grace period, hold, pause, expiry and revocation. The current schema stores only a purchase-token hash, so a secure refresh design must be added (for example, encrypted token retention with strict server-only access) before scheduled rechecks can work independently.
 4. `account-profile`: update display name and contact consent; derive mobile verification from the authenticated Supabase user record.
 5. Admin reporting: expose only a role-protected dashboard/API with user name, verified mobile (when consented), plan, order reference, amount/currency, start/expiry and status. Never expose service-role credentials or raw purchase tokens.
 
