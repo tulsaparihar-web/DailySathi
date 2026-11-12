@@ -6,6 +6,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { createRemoteJWKSet, jwtVerify } from "https://esm.sh/jose@5.9.6";
 import { mapGoogleSubscriptionState } from "../_shared/subscription-state.ts";
+import { duplicateEventAction } from "../_shared/rtdn-idempotency.ts";
 
 const jwks = createRemoteJWKSet(new URL("https://www.googleapis.com/oauth2/v3/certs"));
 const json = (status: number, body: Record<string, unknown>) =>
@@ -121,7 +122,9 @@ Deno.serve(async (req) => {
         .eq("google_event_id", eventId)
         .maybeSingle();
       if (priorEvent.error || !priorEvent.data) throw new Error("Could not recover prior RTDN event");
-      if (priorEvent.data.processed) return json(200, { duplicate: true });
+      if (duplicateEventAction(priorEvent.data.processed) === "acknowledge") {
+        return json(200, { duplicate: true });
+      }
       eventRecordId = priorEvent.data.id;
     } else if (eventInsert.error || !eventInsert.data) {
       throw new Error("Could not record RTDN event");
