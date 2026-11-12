@@ -1,0 +1,35 @@
+name: Supabase Edge Functions
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/supabase/functions/**"
+      - "backend/supabase/config.toml"
+      - ".github/workflows/supabase-edge-functions.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "backend/supabase/functions/**"
+      - "backend/supabase/config.toml"
+      - ".github/workflows/supabase-edge-functions.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  typecheck:
+    name: Type-check Edge Functions
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Type-check purchase verification
+        run: deno check backend/supabase/functions/verify-play-purchase/index.ts
+      - name: Type-check Google Play RTDN
+        run: deno check backend/supabase/functions/google-play-rtdn/index.ts
