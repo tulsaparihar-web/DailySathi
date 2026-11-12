@@ -5,6 +5,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { createRemoteJWKSet, jwtVerify } from "https://esm.sh/jose@5.9.6";
+import { mapGoogleSubscriptionState } from "../_shared/subscription-state.ts";
 
 const jwks = createRemoteJWKSet(new URL("https://www.googleapis.com/oauth2/v3/certs"));
 const json = (status: number, body: Record<string, unknown>) =>
@@ -159,16 +160,7 @@ Deno.serve(async (req) => {
     );
     if (!line) throw new Error("Verified purchase line item missing");
 
-    const stateMap: Record<string, string> = {
-      SUBSCRIPTION_STATE_PENDING: "pending",
-      SUBSCRIPTION_STATE_ACTIVE: "active",
-      SUBSCRIPTION_STATE_IN_GRACE_PERIOD: "grace_period",
-      SUBSCRIPTION_STATE_ON_HOLD: "on_hold",
-      SUBSCRIPTION_STATE_PAUSED: "paused",
-      SUBSCRIPTION_STATE_CANCELED: "canceled",
-      SUBSCRIPTION_STATE_EXPIRED: "expired",
-    };
-    const state = stateMap[purchase.subscriptionState] || "revoked";
+    const state = mapGoogleSubscriptionState(purchase.subscriptionState);
     const expiry = line.expiryTime ? new Date(line.expiryTime).toISOString() : null;
     const update = await admin.from("play_subscriptions").update({
       purchase_state: state,
