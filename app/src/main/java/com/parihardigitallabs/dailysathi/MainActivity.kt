@@ -676,18 +676,19 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
     var cloudProviders by remember { mutableStateOf<List<MarketplaceProvider>>(emptyList()) }
     var marketplaceLoading by remember { mutableStateOf(false) }
     var marketplaceMessage by remember { mutableStateOf<String?>(null) }
+    val providerLoadResult = remember {
+        runCatching {
+            ReminderBackup.decodeProviders(preferences.getString("providers", "[]") ?: "[]")
+        }
+    }
+    var providerLoadError by remember {
+        mutableStateOf(providerLoadResult.exceptionOrNull()?.let {
+            if (hindi) "स्थानीय सेवा सूची पढ़ने में समस्या। डेटा सुरक्षित रखा गया है; बैकअप रीस्टोर करें।"
+            else "Unable to read the saved provider directory. Existing data is preserved; restore a backup to recover it."
+        })
+    }
     var providers by remember {
-        mutableStateOf(runCatching {
-            val saved = org.json.JSONArray(preferences.getString("providers", "[]") ?: "[]")
-            (0 until saved.length()).map { index ->
-                val item = saved.getJSONObject(index)
-                LocalServiceProvider(
-                    item.getLong("id"), item.getString("name"), item.getString("service"),
-                    item.getString("phone"), item.optString("area"), item.optString("details"),
-                    item.optBoolean("isFavorite", false), item.optInt("userRating", 0), item.optString("feedback")
-                )
-            }
-        }.getOrDefault(emptyList()))
+        mutableStateOf(providerLoadResult.getOrDefault(emptyList()))
     }
     val categories = listOf(
         Triple("Electrician", "इलेक्ट्रीशियन", Icons.Default.ElectricalServices),
@@ -707,17 +708,20 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
                 .any { it.contains(providerQuery.trim(), ignoreCase = true) })
     }
     fun saveProviders(items: List<LocalServiceProvider>) {
-        providers = items
-        val json = org.json.JSONArray()
-        items.forEach { provider ->
-            json.put(org.json.JSONObject()
-                .put("id", provider.id).put("name", provider.name)
-                .put("service", provider.service).put("phone", provider.phone)
-                .put("area", provider.area).put("details", provider.details)
-                .put("isFavorite", provider.isFavorite)
-                .put("userRating", provider.userRating).put("feedback", provider.feedback))
+        if (providerLoadError != null) {
+            directoryMessage = providerLoadError
+            return
         }
-        preferences.edit().putString("providers", json.toString()).apply()
+        runCatching {
+            val json = ReminderBackup.encodeProviders(items).toString()
+            check(preferences.edit().putString("providers", json).commit()) {
+                "Unable to save provider directory"
+            }
+        }.onSuccess {
+            providers = items
+        }.onFailure {
+            directoryMessage = (if (hindi) "सेव नहीं हुआ: " else "Save failed: ") + (it.message ?: "Storage error")
+        }
     }
     Column(modifier.fillMaxSize().padding(18.dp)) {
         Text(if (hindi) "स्थानीय सेवाएँ" else "Local Services",
