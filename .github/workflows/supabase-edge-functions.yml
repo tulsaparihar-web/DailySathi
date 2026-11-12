@@ -33,3 +33,5 @@ jobs:
         run: deno check backend/supabase/functions/verify-play-purchase/index.ts
       - name: Type-check Google Play RTDN
         run: deno check backend/supabase/functions/google-play-rtdn/index.ts
+      - name: Run subscription state and entitlement tests
+        run: deno test backend/supabase/functions/_shared/subscription-state_test.ts
