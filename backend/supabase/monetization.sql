@@ -107,9 +107,9 @@ drop trigger if exists play_subscriptions_updated_at on public.play_subscription
 create trigger play_subscriptions_updated_at before update on public.play_subscriptions
 for each row execute function public.set_daily_sathi_updated_at();
 
--- Premium is active only while the trusted backend projection says active or
--- grace_period AND expiry is in the future. Clients must not calculate entitlement
--- from local purchase callbacks alone.
+-- A canceled auto-renewing subscription remains entitled until its paid-through
+-- expiry. Grace-period access is also retained while the verified expiry is future.
+-- Clients must not calculate entitlement from local purchase callbacks alone.
 create or replace function public.has_active_daily_sathi_premium(p_user_id uuid)
 returns boolean
 language sql
@@ -121,7 +121,7 @@ as $$
         select 1
         from public.play_subscriptions s
         where s.user_id = p_user_id
-          and s.purchase_state in ('active','grace_period')
+          and s.purchase_state in ('active','grace_period','canceled')
           and s.expires_at > now()
     );
 $$;
