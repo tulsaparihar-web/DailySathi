@@ -98,6 +98,8 @@ Deno.serve(async (req) => {
       : notification.testNotification ? "test_notification" : "unknown_notification";
 
     // Insert first to make Pub/Sub retries idempotent. Do not persist raw purchase tokens.
+    // If an earlier attempt failed after inserting the event, resume that unprocessed
+    // event instead of acknowledging the retry and leaving the entitlement stale.
     const eventInsert = await admin.from("play_purchase_events").insert({
       event_source: "google_rtdn",
       event_type: eventType,
@@ -111,17 +113,27 @@ Deno.serve(async (req) => {
       },
       processed: false,
     }).select("id").single();
-    if (eventInsert.error) {
-      // Unique event ID means Pub/Sub is retrying a message already accepted.
-      if (eventInsert.error.code === "23505") return json(200, { duplicate: true });
+
+    let eventRecordId: string;
+    if (eventInsert.error?.code === "23505") {
+      const priorEvent = await admin.from("play_purchase_events")
+        .select("id,processed")
+        .eq("google_event_id", eventId)
+        .maybeSingle();
+      if (priorEvent.error || !priorEvent.data) throw new Error("Could not recover prior RTDN event");
+      if (priorEvent.data.processed) return json(200, { duplicate: true });
+      eventRecordId = priorEvent.data.id;
+    } else if (eventInsert.error || !eventInsert.data) {
       throw new Error("Could not record RTDN event");
+    } else {
+      eventRecordId = eventRecordId;
     }
 
     const sub = notification.subscriptionNotification;
     if (!sub || typeof sub.purchaseToken !== "string" || typeof sub.subscriptionId !== "string") {
       await admin.from("play_purchase_events").update({
         processed: true, processed_at: new Date().toISOString(),
-      }).eq("id", eventInsert.data.id);
+      }).eq("id", eventRecordId);
       return json(200, { accepted: true, informational: true });
     }
 
@@ -138,7 +150,7 @@ Deno.serve(async (req) => {
       await admin.from("play_purchase_events").update({
         processed: true, processed_at: new Date().toISOString(),
         processing_error: "Purchase token is not yet linked to a verified account",
-      }).eq("id", eventInsert.data.id);
+      }).eq("id", eventRecordId);
       return json(200, { accepted: true, linked: false });
     }
 
@@ -187,7 +199,7 @@ Deno.serve(async (req) => {
       processed: true,
       processed_at: new Date().toISOString(),
       processing_error: null,
-    }).eq("id", eventInsert.data.id);
+    }).eq("id", eventRecordId);
     if (eventUpdate.error) throw new Error("RTDN audit update failed");
     return json(200, { accepted: true, reconciled: true });
   } catch (_error) {
