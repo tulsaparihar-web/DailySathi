@@ -1526,6 +1526,7 @@ private fun SettingsScreen(
     var feedbackType by remember { mutableStateOf("Suggestion") }
     var feedbackMessage by remember { mutableStateOf("") }
     var feedbackError by remember { mutableStateOf<String?>(null) }
+    var showPremiumPlans by remember { mutableStateOf(false) }
 
     Column(
         modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(22.dp),
@@ -1571,6 +1572,11 @@ private fun SettingsScreen(
                 Text(if (hindi) "आपका सहयोग ऐप को बेहतर बनाने और नए फीचर विकसित करने में मदद करेगा।"
                     else "Your support helps us improve the app and build useful new features.",
                     color = Slate.copy(alpha = .7f), fontSize = 12.sp)
+                OutlinedButton(onClick = { showPremiumPlans = true }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.Star, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (hindi) "प्रीमियम प्लान देखें" else "View Premium plans")
+                }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Star, contentDescription = null, tint = DailyBlue)
                     Spacer(Modifier.width(10.dp))
@@ -1640,6 +1646,71 @@ private fun SettingsScreen(
         Text("Parihar Digital Labs", fontWeight = FontWeight.Bold, color = Navy)
         Text("Technology that makes life easier.", color = Slate.copy(alpha = .65f))
         Text("DailySathi v0.1.0", color = Slate.copy(alpha = .5f), fontSize = 12.sp)
+    }
+
+    if (showPremiumPlans) {
+        AlertDialog(
+            onDismissRequest = { showPremiumPlans = false },
+            title = { Text(if (hindi) "DailySathi Premium" else "DailySathi Premium") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        if (hindi) "कम कीमत में विज्ञापन-मुक्त और अतिरिक्त सुविधाएँ। सदस्यता Google Play के सुरक्षित भुगतान से होगी।"
+                        else "Affordable access to extra features. Subscriptions will use secure Google Play Billing.",
+                        color = Slate.copy(alpha = .72f), fontSize = 12.sp
+                    )
+                    listOf(
+                        Triple("Monthly", "₹99", if (hindi) "1 महीना" else "1 month"),
+                        Triple("Six months", "₹499", if (hindi) "6 महीने" else "6 months"),
+                        Triple("Annual", "₹999", if (hindi) "12 महीने" else "12 months")
+                    ).forEach { plan ->
+                        Surface(
+                            color = SoftBg,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        when (plan.first) {
+                                            "Monthly" -> if (hindi) "मासिक" else "Monthly"
+                                            "Six months" -> if (hindi) "छह महीने" else "Six months"
+                                            else -> if (hindi) "वार्षिक" else "Annual"
+                                        },
+                                        fontWeight = FontWeight.SemiBold, color = Navy
+                                    )
+                                    Text(plan.third, color = Slate.copy(alpha = .6f), fontSize = 11.sp)
+                                }
+                                Text(plan.second, fontWeight = FontWeight.Bold, color = DailyBlue, fontSize = 18.sp)
+                            }
+                        }
+                    }
+                    Text(
+                        if (hindi) "खरीद, खरीद बहाल करना और भुगतान इतिहास Google Play Billing तथा सुरक्षित खाता सेवा सक्रिय होने पर उपलब्ध होंगे।"
+                        else "Purchases, restore purchases and payment history will become available after Google Play Billing and secure account services are configured.",
+                        color = Slate.copy(alpha = .65f), fontSize = 11.sp
+                    )
+                    OutlinedButton(
+                        onClick = {},
+                        enabled = false,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (hindi) "सदस्यता जल्द उपलब्ध होगी" else "Subscribe — coming soon")
+                    }
+                    TextButton(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) {
+                        Text(if (hindi) "खरीद बहाल करें" else "Restore purchases")
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showPremiumPlans = false }) {
+                    Text(if (hindi) "बंद करें" else "Close")
+                }
+            }
+        )
     }
 
     if (showFeedback) {
