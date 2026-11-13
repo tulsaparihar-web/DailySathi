@@ -1934,6 +1934,7 @@ private fun itemHindi(tab: MainTab): String = when (tab) {
     MainTab.CALENDAR -> "कैलेंडर"
     MainTab.TASKS -> "कार्य"
     MainTab.SERVICES -> "सेवाएँ"
+    MainTab.TOOLS -> "टूल्स"
     MainTab.SETTINGS -> "सेटिंग्स"
 }
 
