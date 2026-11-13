@@ -293,8 +293,15 @@ internal fun NeighborhoodMarketplaceScreen(hindi: Boolean, modifier: Modifier = 
                 }
             }
         } else {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text(if (showMyListings) { if (hindi) "मेरी पोस्ट" else "My posts" } else { if (hindi) "आसपास की लिस्टिंग" else "Nearby listings" },
+                    color = MarketplaceNavy, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                if (showMyListings) TextButton(onClick = { showMyListings = false }) {
+                    Text(if (hindi) "आसपास देखें" else "Browse")
+                }
+            }
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
-                items(listings, key = { it.id }) { item ->
+                items(if (showMyListings) myListings else listings, key = { it.id }) { item ->
                     Surface(color = MarketplaceSurface, shape = RoundedCornerShape(16.dp), tonalElevation = 1.dp,
                         modifier = Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -314,29 +321,62 @@ internal fun NeighborhoodMarketplaceScreen(hindi: Boolean, modifier: Modifier = 
                             if (item.description.isNotBlank()) Text(item.description, color = MarketplaceNavy, fontSize = 13.sp)
                             if (item.swapPreferences.isNotBlank()) Text((if (hindi) "बदलाव: " else "Swap for: ") + item.swapPreferences,
                                 color = MarketplaceMuted, fontSize = 12.sp)
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Button(onClick = {
-                                    if (session == null) { pendingContactId = item.id; showPhoneDialog = true }
-                                    else {
-                                        contactBusyId = item.id
-                                        scope.launch {
-                                            runCatching { api.getNeighborhoodListingContact(session!!, item.id) }
-                                                .onSuccess { phone -> context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone"))) }
-                                                .onFailure { message = it.message ?: "Unable to retrieve seller contact." }
-                                            contactBusyId = null
+                            if (showMyListings) {
+                                Text((if (hindi) "स्थिति: " else "Status: ") + when(item.status) {
+                                    "pending" -> if (hindi) "समीक्षा में" else "Under review"
+                                    "active" -> if (hindi) "प्रकाशित" else "Published"
+                                    "reserved" -> if (hindi) "आरक्षित" else "Reserved"
+                                    "sold" -> if (hindi) "बिक गया" else "Sold"
+                                    "rejected" -> if (hindi) "अस्वीकृत" else "Rejected"
+                                    else -> item.status
+                                }, color = MarketplaceTeal, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                if (item.status == "active" || item.status == "reserved") {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        OutlinedButton(onClick = {
+                                            scope.launch {
+                                                runCatching { api.updateNeighborhoodListingStatus(session!!, item.id, "reserved") }
+                                                    .onSuccess { loadMyListings() }
+                                                    .onFailure { message = it.message ?: "Unable to update listing." }
+                                            }
+                                        }, modifier = Modifier.weight(1f)) {
+                                            Text(if (hindi) "आरक्षित करें" else "Reserve")
+                                        }
+                                        OutlinedButton(onClick = {
+                                            scope.launch {
+                                                runCatching { api.updateNeighborhoodListingStatus(session!!, item.id, "sold") }
+                                                    .onSuccess { loadMyListings() }
+                                                    .onFailure { message = it.message ?: "Unable to update listing." }
+                                            }
+                                        }, modifier = Modifier.weight(1f)) {
+                                            Text(if (hindi) "बिक गया" else "Mark sold")
                                         }
                                     }
-                                }, modifier = Modifier.weight(1f), enabled = contactBusyId != item.id) {
-                                    Icon(Icons.Default.Call, contentDescription = null); Spacer(Modifier.width(5.dp))
-                                    Text(if (contactBusyId == item.id) (if (hindi) "प्रतीक्षा..." else "Please wait")
-                                        else if (hindi) "विक्रेता से संपर्क" else "Contact seller")
                                 }
-                                OutlinedButton(onClick = {
-                                    if (session == null) { reportTarget = item; showPhoneDialog = true }
-                                    else reportTarget = item
-                                }, modifier = Modifier.weight(1f)) {
-                                    Icon(Icons.Default.Flag, contentDescription = null); Spacer(Modifier.width(5.dp))
-                                    Text(if (hindi) "रिपोर्ट" else "Report")
+                            } else {
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Button(onClick = {
+                                        if (session == null) { pendingContactId = item.id; authPurpose = "contact"; showPhoneDialog = true }
+                                        else {
+                                            contactBusyId = item.id
+                                            scope.launch {
+                                                runCatching { api.getNeighborhoodListingContact(session!!, item.id) }
+                                                    .onSuccess { phone -> context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone"))) }
+                                                    .onFailure { message = it.message ?: "Unable to retrieve seller contact." }
+                                                contactBusyId = null
+                                            }
+                                        }
+                                    }, modifier = Modifier.weight(1f), enabled = contactBusyId != item.id) {
+                                        Icon(Icons.Default.Call, contentDescription = null); Spacer(Modifier.width(5.dp))
+                                        Text(if (contactBusyId == item.id) (if (hindi) "प्रतीक्षा..." else "Please wait")
+                                            else if (hindi) "विक्रेता से संपर्क" else "Contact seller")
+                                    }
+                                    OutlinedButton(onClick = {
+                                        if (session == null) { reportTarget = item; authPurpose = "report"; showPhoneDialog = true }
+                                        else reportTarget = item
+                                    }, modifier = Modifier.weight(1f)) {
+                                        Icon(Icons.Default.Flag, contentDescription = null); Spacer(Modifier.width(5.dp))
+                                        Text(if (hindi) "रिपोर्ट" else "Report")
+                                    }
                                 }
                             }
                         }
