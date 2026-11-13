@@ -51,6 +51,7 @@ data class NeighborhoodListing(
     val itemCondition: String,
     val priceInr: Double,
     val swapPreferences: String,
+    val status: String,
     val city: String,
     val area: String,
     val createdAt: String,
@@ -216,6 +217,33 @@ class MarketplaceApi {
             )
         }
     }
+
+    suspend fun listMyNeighborhoodListings(session: MarketplaceSession): List<NeighborhoodListing> =
+        withContext(Dispatchers.IO) {
+            val rows = request(
+                "/rest/v1/neighborhood_listings?select=id,title,description,category,listing_type,item_condition,price_inr,swap_preferences,status,city,area,created_at&seller_id=eq.${encode(session.userId)}&order=created_at.desc&limit=50",
+                "GET",
+                accessToken = session.accessToken
+            ) as? JSONArray ?: JSONArray()
+            (0 until rows.length()).map { index ->
+                val item = rows.getJSONObject(index)
+                NeighborhoodListing(
+                    id = item.getString("id"),
+                    title = item.getString("title"),
+                    description = item.optString("description"),
+                    category = item.getString("category"),
+                    listingType = item.getString("listing_type"),
+                    itemCondition = item.getString("item_condition"),
+                    priceInr = item.optDouble("price_inr", 0.0),
+                    swapPreferences = item.optString("swap_preferences"),
+                    status = item.optString("status", "pending"),
+                    city = item.getString("city"),
+                    area = item.getString("area"),
+                    createdAt = item.optString("created_at"),
+                    distanceKm = 0.0
+                )
+            }
+        }
 
     suspend fun createNeighborhoodListing(
         session: MarketplaceSession,
