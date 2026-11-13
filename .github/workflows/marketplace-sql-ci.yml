@@ -90,6 +90,15 @@ jobs:
             if to_regprocedure('public.find_nearby_neighborhood_listings(double precision,double precision,double precision,text)') is null then
               raise exception 'find_nearby_neighborhood_listings RPC is missing';
             end if;
+            if to_regprocedure('public.get_neighborhood_listing_contact(uuid)') is null then
+              raise exception 'get_neighborhood_listing_contact RPC is missing';
+            end if;
+            if to_regprocedure('public.set_neighborhood_listing_status(uuid,text)') is null then
+              raise exception 'set_neighborhood_listing_status RPC is missing';
+            end if;
+            if pg_get_function_result('public.find_nearby_neighborhood_listings(double precision,double precision,double precision,text)'::regprocedure) ilike '%contact_phone%' then
+              raise exception 'Public nearby listing search must not expose seller phone numbers';
+            end if;
           end
           $$;
           SQL
