@@ -225,10 +225,12 @@ create or replace function public.create_neighborhood_listing(
     p_contact_phone text, p_city text, p_area text,
     p_latitude double precision, p_longitude double precision
 )
-returns uuid language plpgsql security definer set search_path = public as $$
-declare new_id uuid;
+returns uuid language plpgsql security definer set search_path = public as $
+declare new_id uuid; verified_phone text;
 begin
     if auth.uid() is null then raise exception 'Sign in with phone verification to post an item'; end if;
+    select phone into verified_phone from auth.users where id = auth.uid();
+    if verified_phone is null or verified_phone = '' then raise exception 'A phone-verified account is required'; end if;
     if p_latitude not between -90 and 90 or p_longitude not between -180 and 180 then
         raise exception 'A valid approximate location is required';
     end if;
@@ -238,7 +240,7 @@ begin
     ) values (
         auth.uid(),trim(p_title),coalesce(p_description,''),p_category,p_listing_type,
         p_item_condition,coalesce(p_price_inr,0),coalesce(p_swap_preferences,''),
-        p_contact_phone,trim(p_city),trim(p_area),'pending'
+        verified_phone,trim(p_city),trim(p_area),'pending'
     ) returning id into new_id;
     insert into public.neighborhood_listing_locations(listing_id,latitude,longitude)
     values (new_id,p_latitude,p_longitude);
