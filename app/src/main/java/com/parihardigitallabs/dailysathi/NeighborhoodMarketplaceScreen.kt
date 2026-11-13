@@ -61,6 +61,9 @@ internal fun NeighborhoodMarketplaceScreen(hindi: Boolean, modifier: Modifier = 
     var message by remember { mutableStateOf<String?>(null) }
     var repairProviders by remember { mutableStateOf<List<NearbyRepairProvider>>(emptyList()) }
     var listings by remember { mutableStateOf<List<NeighborhoodListing>>(emptyList()) }
+    var myListings by remember { mutableStateOf<List<NeighborhoodListing>>(emptyList()) }
+    var showMyListings by remember { mutableStateOf(false) }
+    var authPurpose by remember { mutableStateOf("post") }
     var session by remember { mutableStateOf<MarketplaceSession?>(null) }
     var showPhoneDialog by remember { mutableStateOf(false) }
     var showOtpDialog by remember { mutableStateOf(false) }
@@ -103,9 +106,21 @@ internal fun NeighborhoodMarketplaceScreen(hindi: Boolean, modifier: Modifier = 
         }
     }
 
+    fun loadMyListings() {
+        val current = session ?: return
+        loading = true
+        scope.launch {
+            runCatching { api.listMyNeighborhoodListings(current) }
+                .onSuccess { myListings = it; showMyListings = true; message = null }
+                .onFailure { message = it.message ?: "Unable to load your listings." }
+            loading = false
+        }
+    }
+
     fun loadNearby() {
         val current = location
         val selectedSection = section
+        showMyListings = false
         if (!api.isConfigured) {
             message = if (hindi) "ऑनलाइन मार्केटप्लेस जोड़ने के लिए Supabase सेटअप आवश्यक है।"
                 else "Supabase setup is required to connect the online marketplace."
@@ -214,12 +229,23 @@ internal fun NeighborhoodMarketplaceScreen(hindi: Boolean, modifier: Modifier = 
         }
         if (section == "resale") {
             Spacer(Modifier.height(10.dp))
-            OutlinedButton(onClick = {
-                if (session == null) showPhoneDialog = true else showCreateDialog = true
-            }, modifier = Modifier.fillMaxWidth()) {
-                Icon(Icons.Default.Add, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text(if (hindi) "नई वस्तु की लिस्टिंग जोड़ें" else "Post an item")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                Button(onClick = {
+                    authPurpose = "post"
+                    if (session == null) showPhoneDialog = true else showCreateDialog = true
+                }, modifier = Modifier.weight(1f)) {
+                    Icon(Icons.Default.Add, contentDescription = null)
+                    Spacer(Modifier.width(6.dp))
+                    Text(if (hindi) "वस्तु पोस्ट करें" else "Post item")
+                }
+                OutlinedButton(onClick = {
+                    authPurpose = "my"
+                    if (session == null) showPhoneDialog = true else loadMyListings()
+                }, modifier = Modifier.weight(1f), enabled = !loading) {
+                    Icon(Icons.Default.Inventory2, contentDescription = null)
+                    Spacer(Modifier.width(6.dp))
+                    Text(if (hindi) "मेरी लिस्टिंग" else "My listings")
+                }
             }
         }
         message?.let {
