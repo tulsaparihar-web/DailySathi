@@ -192,13 +192,13 @@ create or replace function public.find_nearby_neighborhood_listings(
 returns table (
     id uuid, title text, description text, category text, listing_type text,
     item_condition text, price_inr numeric, swap_preferences text,
-    city text, area text, created_at timestamptz,
+    status text, city text, area text, created_at timestamptz,
     distance_km double precision
 )
 language sql stable security definer set search_path = public as $$
     select n.id, n.title, n.description, n.category, n.listing_type,
            n.item_condition, n.price_inr, n.swap_preferences,
-           n.city, n.area, n.created_at,
+           n.status, n.city, n.area, n.created_at,
            6371 * 2 * asin(sqrt(
              power(sin(radians(l.latitude - p_latitude) / 2), 2) +
              cos(radians(p_latitude)) * cos(radians(l.latitude)) *
