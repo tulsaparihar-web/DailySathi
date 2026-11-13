@@ -18,6 +18,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
@@ -45,11 +47,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private val DailyBlue = Color(0xFF2876C7)
-private val Navy = Color(0xFF123B50)
-private val Teal = Color(0xFF168D87)
-private val SoftBg = Color(0xFFF5F8FA)
-private val Slate = Color(0xFF253746)
+private val DailyBlue = Color(0xFF245D9C)
+private val Navy = Color(0xFF102A43)
+private val Teal = Color(0xFF087F78)
+private val SoftBg = Color(0xFFF3F6F8)
+private val Slate = Color(0xFF334E68)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -75,6 +77,11 @@ private fun DailySathiTheme(content: @Composable () -> Unit) {
             onPrimary = Color.White,
             onBackground = Slate,
             onSurface = Slate
+        ),
+        shapes = Shapes(
+            small = RoundedCornerShape(10.dp),
+            medium = RoundedCornerShape(16.dp),
+            large = RoundedCornerShape(24.dp)
         ),
         content = content
     )
@@ -141,7 +148,11 @@ private fun DailySathiApp(database: DailySathiDatabase, openCalendarOnLaunch: Bo
             }
         },
         bottomBar = {
-            NavigationBar(containerColor = Color.White) {
+            NavigationBar(
+                containerColor = Color.White,
+                contentColor = Navy,
+                tonalElevation = 8.dp
+            ) {
                 MainTab.entries.forEach { item ->
                     val icon = when (item) {
                         MainTab.HOME -> Icons.Default.Home
@@ -154,8 +165,27 @@ private fun DailySathiApp(database: DailySathiDatabase, openCalendarOnLaunch: Bo
                     NavigationBarItem(
                         selected = tab == item,
                         onClick = { tab = item },
-                        icon = { Icon(icon, contentDescription = item.label) },
-                        label = { Text(if (hindi) itemHindi(item) else item.label) }
+                        icon = {
+                            Icon(
+                                icon,
+                                contentDescription = if (hindi) itemHindi(item) else item.label,
+                                modifier = Modifier.size(21.dp)
+                            )
+                        },
+                        label = {
+                            Text(
+                                if (hindi) itemHindi(item) else item.label,
+                                fontSize = 10.sp,
+                                fontWeight = if (tab == item) FontWeight.SemiBold else FontWeight.Normal
+                            )
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = DailyBlue,
+                            selectedTextColor = DailyBlue,
+                            indicatorColor = DailyBlue.copy(alpha = .10f),
+                            unselectedIconColor = Slate.copy(alpha = .72f),
+                            unselectedTextColor = Slate.copy(alpha = .72f)
+                        )
                     )
                 }
             }
@@ -404,7 +434,10 @@ private fun HomeScreen(
         }
         item {
             Surface(shape = RoundedCornerShape(24.dp), color = Navy, modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(
+                    Modifier.background(Brush.linearGradient(listOf(Navy, DailyBlue, Teal))).padding(22.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Text(if (hindi) "नमस्ते!" else "Hello there!", color = Color.White.copy(alpha = .8f))
                     Text(
                         if (hindi) "आज की छोटी बातें,\nकल की बड़ी राहत।" else "Make room for what\nmatters today.",
@@ -1028,104 +1061,10 @@ private fun LocalServicesScreen(hindi: Boolean, modifier: Modifier) {
                 else "Note: These entries are stored on this device only; a shared online directory is not connected yet.",
                 color = Slate.copy(alpha = .55f), fontSize = 11.sp)
         } else {
-            Surface(color = Color.White, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                    Text(if (hindi) "DailySathi सेवा मार्केटप्लेस" else "DailySathi Service Marketplace",
-                        color = Navy, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                    Text(if (hindi) "ग्राहक बिना लॉगिन सेवाएँ खोज सकते हैं। सेवा प्रदाता निःशुल्क पंजीकरण कर सकते हैं।"
-                        else "Customers can browse without login. Service providers can register for free.",
-                        color = Slate.copy(alpha = .68f), fontSize = 12.sp)
-                    Button(onClick = {
-                        if (marketplaceApi.isConfigured) {
-                            showMarketplaceRegister = true
-                        } else {
-                            selectedMode = "DIRECTORY"
-                            marketplaceMessage = if (hindi)
-                                "ऑनलाइन पंजीकरण बाद में उपलब्ध होगा। अभी प्रदाता को अपनी डिवाइस डायरेक्टरी में जोड़ें।"
-                            else
-                                "Online registration will be available later. For now, add the provider to your on-device directory."
-                        }
-                    }, modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.Default.AddBusiness, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text(if (hindi) "सेवा प्रदाता जोड़ें" else "Add a service provider")
-                    }
-                    OutlinedButton(
-                        onClick = {
-                            if (!marketplaceApi.isConfigured) {
-                                marketplaceMessage = if (hindi)
-                                    "ऑनलाइन डायरेक्टरी अभी सेटअप नहीं है। आप डिवाइस की स्थानीय प्रदाता सूची का उपयोग कर सकते हैं।"
-                                else
-                                    "The online directory is not connected yet. You can use the on-device provider directory meanwhile."
-                            } else {
-                                marketplaceLoading = true
-                                marketplaceScope.launch {
-                                    runCatching {
-                                        marketplaceApi.listApprovedProviders(
-                                            null, providerCategory, area, "", providerQuery
-                                        )
-                                    }
-                                        .onSuccess { cloudProviders = it; marketplaceMessage = if (it.isEmpty()) {
-                                            if (hindi) "अभी कोई स्वीकृत प्रदाता नहीं मिला।" else "No approved providers found yet."
-                                        } else null }
-                                        .onFailure { marketplaceMessage = it.message ?: "Unable to load listings." }
-                                    marketplaceLoading = false
-                                }
-                            }
-                        }, modifier = Modifier.fillMaxWidth(), enabled = !marketplaceLoading
-                    ) {
-                        Icon(Icons.Default.Refresh, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text(if (marketplaceLoading) (if (hindi) "लोड हो रहा है..." else "Loading...")
-                            else if (hindi) "स्वीकृत प्रदाता खोजें" else "Find approved providers")
-                    }
-                    marketplaceMessage?.let { Text(it, color = Color(0xFF9A6700), fontSize = 12.sp) }
-                }
-            }
-            Spacer(Modifier.height(12.dp))
-            Text(if (hindi) "स्वीकृत सेवा प्रदाता" else "Approved service providers",
-                color = Navy, fontWeight = FontWeight.SemiBold)
-            OutlinedTextField(value = area, onValueChange = { area = it },
-                modifier = Modifier.fillMaxWidth(), singleLine = true,
-                label = { Text(if (hindi) "शहर / इलाका" else "City / area") })
-            OutlinedTextField(value = providerQuery, onValueChange = { providerQuery = it },
-                modifier = Modifier.fillMaxWidth(), singleLine = true,
-                label = { Text(if (hindi) "सेवा या नाम खोजें" else "Search service or name") })
-            if (cloudProviders.isEmpty()) {
-                Text(if (hindi) "स्वीकृत लिस्टिंग देखने के लिए ऊपर खोजें।" else "Tap Find approved providers to load public listings.",
-                    color = Slate.copy(alpha = .65f), fontSize = 12.sp)
-            } else {
-                cloudProviders.forEach { item ->
-                    Surface(color = Color.White, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(item.businessName, color = Navy, fontWeight = FontWeight.SemiBold)
-                            Text(item.category + " • " + item.area + ", " + item.city, color = Teal, fontSize = 12.sp)
-                            if (item.description.isNotBlank()) Text(item.description, color = Slate, fontSize = 12.sp)
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedButton(onClick = {
-                                    context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + item.phone)))
-                                }, modifier = Modifier.weight(1f)) {
-                                    Icon(Icons.Default.Call, contentDescription = null)
-                                    Spacer(Modifier.width(4.dp))
-                                    Text(if (hindi) "कॉल" else "Call")
-                                }
-                                OutlinedButton(onClick = {
-                                    val digits = item.phone.filter { it.isDigit() }
-                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$digits")))
-                                }, modifier = Modifier.weight(1f)) {
-                                    Icon(Icons.Default.Chat, contentDescription = null)
-                                    Spacer(Modifier.width(4.dp))
-                                    Text("WhatsApp")
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            Text(if (hindi) "सिर्फ स्वीकृत प्रदाता सार्वजनिक रूप से दिखाई देंगे।" else "Only approved providers are shown publicly.",
-                color = Slate.copy(alpha = .55f), fontSize = 11.sp)
+            NeighborhoodMarketplaceScreen(hindi, Modifier.weight(1f))
         }
     }
+
     providerPendingDelete?.let { provider ->
         AlertDialog(
             onDismissRequest = { providerPendingDelete = null },
@@ -1536,13 +1475,17 @@ private fun SettingsScreen(
     ) {
         Text(if (hindi) "सेटिंग्स" else "Settings",
             fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Navy)
-        Surface(color = Color.White, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
-            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(if (hindi) "ऐप की भाषा" else "App language", fontWeight = FontWeight.SemiBold)
-                    Text(if (hindi) "हिंदी" else "English", color = Slate.copy(alpha = .6f), fontSize = 12.sp)
+        Surface(color = Color.White, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth(), tonalElevation = 1.dp) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(if (hindi) "ऐप की भाषा" else "App language", fontWeight = FontWeight.SemiBold, color = Navy)
+                Text(if (hindi) "किसी भी समय भाषा बदलें।" else "Change the app language whenever you like.",
+                    color = Slate.copy(alpha = .65f), fontSize = 12.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = hindi, onClick = { onLanguageChange(true) },
+                        label = { Text("हिन्दी") }, leadingIcon = { if (hindi) Icon(Icons.Default.Check, contentDescription = null) })
+                    FilterChip(selected = !hindi, onClick = { onLanguageChange(false) },
+                        label = { Text("English") }, leadingIcon = { if (!hindi) Icon(Icons.Default.Check, contentDescription = null) })
                 }
-                Switch(checked = hindi, onCheckedChange = onLanguageChange)
             }
         }
         Surface(color = Color.White, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {

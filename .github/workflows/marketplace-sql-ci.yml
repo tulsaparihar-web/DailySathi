@@ -47,26 +47,17 @@ jobs:
           create role anon nologin;
           create role authenticated nologin;
           create schema auth;
-          create table auth.users (id uuid primary key);
+          create table auth.users (id uuid primary key, phone text);
           create or replace function auth.uid()
           returns uuid language sql stable as $$ select null::uuid $$;
           create or replace function auth.jwt()
           returns jsonb language sql stable as $$ select '{}'::jsonb $$;
           create extension if not exists pgcrypto;
-          create table public.service_providers (
-            id uuid primary key default gen_random_uuid(),
-            owner_id uuid references auth.users(id) on delete set null,
-            business_name text not null,
-            category text not null,
-            contact_name text not null,
-            phone text not null,
-            city text not null,
-            area text not null,
-            description text,
-            status text not null default 'pending',
-            created_at timestamptz not null default now()
-          );
           SQL
+      - name: Apply base service-provider schema
+        env:
+          PGPASSWORD: postgres
+        run: psql -h localhost -U postgres -d daily_sathi_test -v ON_ERROR_STOP=1 -f backend/supabase/schema.sql
       - name: Apply neighbourhood marketplace migration
         env:
           PGPASSWORD: postgres
@@ -89,6 +80,15 @@ jobs:
             end if;
             if to_regprocedure('public.find_nearby_neighborhood_listings(double precision,double precision,double precision,text)') is null then
               raise exception 'find_nearby_neighborhood_listings RPC is missing';
+            end if;
+            if to_regprocedure('public.get_neighborhood_listing_contact(uuid)') is null then
+              raise exception 'get_neighborhood_listing_contact RPC is missing';
+            end if;
+            if to_regprocedure('public.set_neighborhood_listing_status(uuid,text)') is null then
+              raise exception 'set_neighborhood_listing_status RPC is missing';
+            end if;
+            if pg_get_function_result('public.find_nearby_neighborhood_listings(double precision,double precision,double precision,text)'::regprocedure) ilike '%contact_phone%' then
+              raise exception 'Public nearby listing search must not expose seller phone numbers';
             end if;
           end
           $$;

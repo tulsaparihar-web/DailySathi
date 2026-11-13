@@ -183,6 +183,8 @@ language sql stable security definer set search_path = public as $$
      order by distance_km asc limit 100;
 $$;
 
+drop function if exists public.find_nearby_neighborhood_listings(double precision,double precision,double precision,text);
+
 create or replace function public.find_nearby_neighborhood_listings(
     p_latitude double precision, p_longitude double precision,
     p_radius_km double precision default 3, p_category text default null
@@ -190,13 +192,13 @@ create or replace function public.find_nearby_neighborhood_listings(
 returns table (
     id uuid, title text, description text, category text, listing_type text,
     item_condition text, price_inr numeric, swap_preferences text,
-    contact_phone text, city text, area text, created_at timestamptz,
+    status text, city text, area text, created_at timestamptz,
     distance_km double precision
 )
 language sql stable security definer set search_path = public as $$
     select n.id, n.title, n.description, n.category, n.listing_type,
-           n.item_condition, n.price_inr, n.swap_preferences, n.contact_phone,
-           n.city, n.area, n.created_at,
+           n.item_condition, n.price_inr, n.swap_preferences,
+           n.status, n.city, n.area, n.created_at,
            6371 * 2 * asin(sqrt(
              power(sin(radians(l.latitude - p_latitude) / 2), 2) +
              cos(radians(p_latitude)) * cos(radians(l.latitude)) *
@@ -224,9 +226,11 @@ create or replace function public.create_neighborhood_listing(
     p_latitude double precision, p_longitude double precision
 )
 returns uuid language plpgsql security definer set search_path = public as $$
-declare new_id uuid;
+declare new_id uuid; verified_phone text;
 begin
     if auth.uid() is null then raise exception 'Sign in with phone verification to post an item'; end if;
+    select phone into verified_phone from auth.users where id = auth.uid();
+    if verified_phone is null or verified_phone = '' then raise exception 'A phone-verified account is required'; end if;
     if p_latitude not between -90 and 90 or p_longitude not between -180 and 180 then
         raise exception 'A valid approximate location is required';
     end if;
@@ -236,7 +240,7 @@ begin
     ) values (
         auth.uid(),trim(p_title),coalesce(p_description,''),p_category,p_listing_type,
         p_item_condition,coalesce(p_price_inr,0),coalesce(p_swap_preferences,''),
-        p_contact_phone,trim(p_city),trim(p_area),'pending'
+        verified_phone,trim(p_city),trim(p_area),'pending'
     ) returning id into new_id;
     insert into public.neighborhood_listing_locations(listing_id,latitude,longitude)
     values (new_id,p_latitude,p_longitude);
@@ -282,3 +286,35 @@ grant execute on function public.get_service_provider_reviews(uuid) to anon, aut
 grant execute on function public.find_nearby_service_providers(double precision,double precision,double precision,text) to anon, authenticated;
 grant execute on function public.find_nearby_neighborhood_listings(double precision,double precision,double precision,text) to anon, authenticated;
 grant execute on function public.create_neighborhood_listing(text,text,text,text,text,numeric,text,text,text,text,double precision,double precision) to authenticated;
+
+-- Public listing search never returns a seller's phone number.
+-- Contact is disclosed only after the buyer signs in and explicitly taps Contact.
+create or replace function public.get_neighborhood_listing_contact(p_listing_id uuid)
+returns text language plpgsql stable security definer set search_path = public as $$
+declare result text;
+begin
+    if auth.uid() is null then raise exception 'Sign in is required to contact a seller'; end if;
+    select contact_phone into result
+      from public.neighborhood_listings
+     where id = p_listing_id and status in ('active','reserved') and expires_at > now();
+    if result is null then raise exception 'Seller contact is not available'; end if;
+    return result;
+end;
+$$;
+grant execute on function public.get_neighborhood_listing_contact(uuid) to authenticated;
+
+create or replace function public.set_neighborhood_listing_status(p_listing_id uuid, p_status text)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+    if auth.uid() is null then raise exception 'Sign in is required'; end if;
+    if p_status not in ('reserved','sold','removed') then
+        raise exception 'Unsupported listing status';
+    end if;
+    update public.neighborhood_listings
+       set status = p_status, updated_at = now()
+     where id = p_listing_id and seller_id = auth.uid()
+       and status in ('active','reserved');
+    if not found then raise exception 'Listing not found or not owned by this account'; end if;
+end;
+$$;
+grant execute on function public.set_neighborhood_listing_status(uuid,text) to authenticated;

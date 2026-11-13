@@ -23,7 +23,8 @@ data class MarketplaceProvider(
 data class MarketplaceSession(
     val accessToken: String,
     val refreshToken: String,
-    val userId: String
+    val userId: String,
+    val phone: String
 )
 
 data class NearbyRepairProvider(
@@ -50,7 +51,7 @@ data class NeighborhoodListing(
     val itemCondition: String,
     val priceInr: Double,
     val swapPreferences: String,
-    val contactPhone: String,
+    val status: String,
     val city: String,
     val area: String,
     val createdAt: String,
@@ -89,7 +90,8 @@ class MarketplaceApi {
         MarketplaceSession(
             accessToken = response.getString("access_token"),
             refreshToken = response.optString("refresh_token"),
-            userId = user.getString("id")
+            userId = user.getString("id"),
+            phone = user.optString("phone", phone)
         )
     }
 
@@ -156,6 +158,54 @@ class MarketplaceApi {
     }
 
 
+    suspend fun submitVerifiedProvider(
+        session: MarketplaceSession,
+        businessName: String,
+        category: String,
+        contactName: String,
+        city: String,
+        area: String,
+        description: String,
+        latitude: Double,
+        longitude: Double
+    ): String = withContext(Dispatchers.IO) {
+        val body = JSONObject()
+            .put("owner_id", session.userId)
+            .put("business_name", businessName.trim())
+            .put("category", category)
+            .put("contact_name", contactName.trim())
+            .put("phone", session.phone)
+            .put("city", city.trim())
+            .put("area", area.trim())
+            .put("description", description.trim())
+            .put("status", "pending")
+        val response = request(
+            "/rest/v1/service_providers",
+            "POST",
+            body,
+            session.accessToken,
+            prefer = "return=representation"
+        ) as? JSONArray ?: error("Provider application response was invalid.")
+        val providerId = response.optJSONObject(0)?.optString("id").orEmpty()
+        check(providerId.isNotBlank()) { "Provider application did not return an ID." }
+        setNeighborhoodServiceLocation(session, providerId, latitude, longitude)
+        providerId
+    }
+
+    suspend fun setNeighborhoodServiceLocation(
+        session: MarketplaceSession, providerId: String, latitude: Double, longitude: Double
+    ) = withContext(Dispatchers.IO) {
+        request(
+            "/rest/v1/rpc/set_neighborhood_service_location",
+            "POST",
+            JSONObject()
+                .put("p_provider_id", providerId)
+                .put("p_latitude", latitude)
+                .put("p_longitude", longitude),
+            session.accessToken
+        )
+    }
+
     suspend fun listNearbyRepairProviders(
         latitude: Double, longitude: Double, radiusKm: Double = 3.0, category: String? = null
     ): List<NearbyRepairProvider> = withContext(Dispatchers.IO) {
@@ -208,7 +258,7 @@ class MarketplaceApi {
                 itemCondition = item.getString("item_condition"),
                 priceInr = item.optDouble("price_inr", 0.0),
                 swapPreferences = item.optString("swap_preferences"),
-                contactPhone = item.optString("contact_phone"),
+                status = item.optString("status", "active"),
                 city = item.optString("city"),
                 area = item.optString("area"),
                 createdAt = item.optString("created_at"),
@@ -216,6 +266,33 @@ class MarketplaceApi {
             )
         }
     }
+
+    suspend fun listMyNeighborhoodListings(session: MarketplaceSession): List<NeighborhoodListing> =
+        withContext(Dispatchers.IO) {
+            val rows = request(
+                "/rest/v1/neighborhood_listings?select=id,title,description,category,listing_type,item_condition,price_inr,swap_preferences,status,city,area,created_at&seller_id=eq.${encode(session.userId)}&order=created_at.desc&limit=50",
+                "GET",
+                accessToken = session.accessToken
+            ) as? JSONArray ?: JSONArray()
+            (0 until rows.length()).map { index ->
+                val item = rows.getJSONObject(index)
+                NeighborhoodListing(
+                    id = item.getString("id"),
+                    title = item.getString("title"),
+                    description = item.optString("description"),
+                    category = item.getString("category"),
+                    listingType = item.getString("listing_type"),
+                    itemCondition = item.getString("item_condition"),
+                    priceInr = item.optDouble("price_inr", 0.0),
+                    swapPreferences = item.optString("swap_preferences"),
+                    status = item.optString("status", "pending"),
+                    city = item.getString("city"),
+                    area = item.getString("area"),
+                    createdAt = item.optString("created_at"),
+                    distanceKm = 0.0
+                )
+            }
+        }
 
     suspend fun createNeighborhoodListing(
         session: MarketplaceSession,
@@ -239,6 +316,28 @@ class MarketplaceApi {
             .put("p_longitude", longitude)
         request("/rest/v1/rpc/create_neighborhood_listing", "POST", body, session.accessToken) as? String
             ?: error("The listing could not be created.")
+    }
+
+    suspend fun getNeighborhoodListingContact(session: MarketplaceSession, listingId: String): String =
+        withContext(Dispatchers.IO) {
+            request(
+                "/rest/v1/rpc/get_neighborhood_listing_contact",
+                "POST",
+                JSONObject().put("p_listing_id", listingId),
+                session.accessToken
+            ) as? String ?: error("Seller contact is not available.")
+        }
+
+    suspend fun updateNeighborhoodListingStatus(
+        session: MarketplaceSession, listingId: String, status: String
+    ) = withContext(Dispatchers.IO) {
+        require(status in setOf("reserved", "sold", "removed"))
+        request(
+            "/rest/v1/rpc/set_neighborhood_listing_status",
+            "POST",
+            JSONObject().put("p_listing_id", listingId).put("p_status", status),
+            session.accessToken
+        )
     }
 
     suspend fun getProviderReviews(providerId: String): List<ProviderCommunityReview> =

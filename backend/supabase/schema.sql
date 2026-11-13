@@ -46,7 +46,16 @@ drop policy if exists "Providers can submit pending listings" on public.service_
 drop policy if exists "Public can submit pending listings" on public.service_providers;
 create policy "Public can submit pending listings"
     on public.service_providers for insert to anon, authenticated
-    with check (owner_id is null and status = 'pending');
+    with check (
+        (owner_id is null and status = 'pending')
+        or (auth.uid() is not null and owner_id = auth.uid() and status = 'pending')
+    );
+
+-- Providers can read their own pending application after authenticated submission.
+drop policy if exists "Providers can view own pending listings" on public.service_providers;
+create policy "Providers can view own pending listings"
+    on public.service_providers for select to authenticated
+    using (owner_id = auth.uid() and status = 'pending');
 
 -- Providers can edit their own pending listings. Approved listings require
 -- admin moderation before any public profile changes take effect.
