@@ -251,7 +251,7 @@ $$;
 create or replace function public.set_neighborhood_service_location(
     p_provider_id uuid, p_latitude double precision, p_longitude double precision
 )
-returns void language plpgsql security definer set search_path = public as $$$
+returns void language plpgsql security definer set search_path = public as $$
 begin
     if auth.uid() is null then raise exception 'Sign in is required'; end if;
     if p_latitude not between -90 and 90 or p_longitude not between -180 and 180 then
@@ -302,7 +302,7 @@ $$;
 grant execute on function public.get_neighborhood_listing_contact(uuid) to authenticated;
 
 create or replace function public.set_neighborhood_listing_status(p_listing_id uuid, p_status text)
-returns void language plpgsql security definer set search_path = public as $
+returns void language plpgsql security definer set search_path = public as $$
 begin
     if auth.uid() is null then raise exception 'Sign in is required'; end if;
     if p_status not in ('reserved','sold','removed') then
