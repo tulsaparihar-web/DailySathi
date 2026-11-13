@@ -158,6 +158,54 @@ class MarketplaceApi {
     }
 
 
+    suspend fun submitVerifiedProvider(
+        session: MarketplaceSession,
+        businessName: String,
+        category: String,
+        contactName: String,
+        city: String,
+        area: String,
+        description: String,
+        latitude: Double,
+        longitude: Double
+    ): String = withContext(Dispatchers.IO) {
+        val body = JSONObject()
+            .put("owner_id", session.userId)
+            .put("business_name", businessName.trim())
+            .put("category", category)
+            .put("contact_name", contactName.trim())
+            .put("phone", session.phone)
+            .put("city", city.trim())
+            .put("area", area.trim())
+            .put("description", description.trim())
+            .put("status", "pending")
+        val response = request(
+            "/rest/v1/service_providers",
+            "POST",
+            body,
+            session.accessToken,
+            prefer = "return=representation"
+        ) as? JSONArray ?: error("Provider application response was invalid.")
+        val providerId = response.optJSONObject(0)?.optString("id").orEmpty()
+        check(providerId.isNotBlank()) { "Provider application did not return an ID." }
+        setNeighborhoodServiceLocation(session, providerId, latitude, longitude)
+        providerId
+    }
+
+    suspend fun setNeighborhoodServiceLocation(
+        session: MarketplaceSession, providerId: String, latitude: Double, longitude: Double
+    ) = withContext(Dispatchers.IO) {
+        request(
+            "/rest/v1/rpc/set_neighborhood_service_location",
+            "POST",
+            JSONObject()
+                .put("p_provider_id", providerId)
+                .put("p_latitude", latitude)
+                .put("p_longitude", longitude),
+            session.accessToken
+        )
+    }
+
     suspend fun listNearbyRepairProviders(
         latitude: Double, longitude: Double, radiusKm: Double = 3.0, category: String? = null
     ): List<NearbyRepairProvider> = withContext(Dispatchers.IO) {
