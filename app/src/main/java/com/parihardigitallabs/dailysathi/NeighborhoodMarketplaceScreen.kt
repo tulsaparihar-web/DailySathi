@@ -71,6 +71,8 @@ internal fun NeighborhoodMarketplaceScreen(hindi: Boolean, modifier: Modifier = 
     var otpDraft by remember { mutableStateOf("") }
     var authBusy by remember { mutableStateOf(false) }
     var showCreateDialog by remember { mutableStateOf(false) }
+    var showProviderDialog by remember { mutableStateOf(false) }
+    var pendingProviderDialog by remember { mutableStateOf(false) }
     var contactBusyId by remember { mutableStateOf<String?>(null) }
     var pendingContactId by remember { mutableStateOf<String?>(null) }
     var reportTarget by remember { mutableStateOf<NeighborhoodListing?>(null) }
@@ -84,7 +86,7 @@ internal fun NeighborhoodMarketplaceScreen(hindi: Boolean, modifier: Modifier = 
         val granted = grants[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
             grants[Manifest.permission.ACCESS_COARSE_LOCATION] == true
         if (granted) {
-            readCurrentLocation(context, onLocation = { location = it; locationBusy = false; message = null },
+            readCurrentLocation(context, onLocation = { location = it; locationBusy = false; message = null; if (pendingProviderDialog) { pendingProviderDialog = false; showProviderDialog = true } },
                 onFailure = { locationBusy = false; message = it })
         } else {
             locationBusy = false
@@ -256,6 +258,22 @@ internal fun NeighborhoodMarketplaceScreen(hindi: Boolean, modifier: Modifier = 
         }
         Spacer(Modifier.height(10.dp))
         if (section == "repair") {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text(if (hindi) "स्थानीय सेवा प्रदाता" else "Local service providers",
+                    color = MarketplaceNavy, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                TextButton(onClick = {
+                    authPurpose = "provider"
+                    if (session == null) showPhoneDialog = true
+                    else if (location == null) {
+                        pendingProviderDialog = true
+                        requestLocation()
+                    } else showProviderDialog = true
+                }) {
+                    Icon(Icons.Default.AddBusiness, contentDescription = null)
+                    Spacer(Modifier.width(4.dp))
+                    Text(if (hindi) "प्रदाता बनें" else "Register")
+                }
+            }
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
                 items(repairProviders, key = { it.id }) { provider ->
                     Surface(color = MarketplaceSurface, shape = RoundedCornerShape(16.dp), tonalElevation = 1.dp,
@@ -441,6 +459,11 @@ internal fun NeighborhoodMarketplaceScreen(hindi: Boolean, modifier: Modifier = 
                                         .onFailure { message = it.message ?: "Unable to retrieve seller contact." }
                                 } else if (authPurpose == "my") {
                                     loadMyListings()
+                                } else if (authPurpose == "provider") {
+                                    if (location == null) {
+                                        pendingProviderDialog = true
+                                        requestLocation()
+                                    } else showProviderDialog = true
                                 } else if (authPurpose == "post" && reportTarget == null) {
                                     showCreateDialog = true
                                 }
@@ -452,6 +475,32 @@ internal fun NeighborhoodMarketplaceScreen(hindi: Boolean, modifier: Modifier = 
             },
             dismissButton = { TextButton(onClick = { showOtpDialog = false }) { Text(if (hindi) "बंद करें" else "Close") } }
         )
+    }
+
+    if (showProviderDialog) {
+        ProviderRegistrationDialog(hindi, session?.phone.orEmpty(), onDismiss = { showProviderDialog = false }) { business, service, contactName, cityName, neighbourhood, details ->
+            val currentSession = session
+            val currentLocation = location
+            if (currentSession == null || currentLocation == null) {
+                message = if (hindi) "पंजीकरण के लिए मोबाइल सत्यापन और लोकेशन आवश्यक है।"
+                    else "Phone verification and location are required to register."
+            } else {
+                showProviderDialog = false
+                loading = true
+                scope.launch {
+                    runCatching {
+                        api.submitVerifiedProvider(currentSession, business, service, contactName, cityName,
+                            neighbourhood, details, currentLocation.latitude, currentLocation.longitude)
+                    }.onSuccess {
+                        message = if (hindi) "आवेदन समीक्षा के लिए भेज दिया गया है। स्वीकृति के बाद आप आसपास दिखाई देंगे।"
+                            else "Your application was submitted for review. You will appear in nearby results after approval."
+                    }.onFailure {
+                        message = it.message ?: "Unable to submit provider application."
+                    }
+                    loading = false
+                }
+            }
+        }
     }
 
     if (showCreateDialog) {
@@ -688,3 +737,62 @@ private fun conditionLabel(value: String, hindi: Boolean): String = if (!hindi) 
     "fair" -> "ठीक-ठाक"
     else -> value
 }
+@Composable
+private fun ProviderRegistrationDialog(
+    hindi: Boolean, verifiedPhone: String, onDismiss: () -> Unit,
+    onSubmit: (String, String, String, String, String, String) -> Unit
+) {
+    val services = listOf("Electrician", "Plumber", "Mason", "Carpenter", "Painter",
+        "House cleaner / Helper", "AC repair", "Appliance repair", "Driver")
+    var business by remember { mutableStateOf("") }
+    var category by remember { mutableStateOf(services.first()) }
+    var contactName by remember { mutableStateOf("") }
+    var city by remember { mutableStateOf("") }
+    var area by remember { mutableStateOf("") }
+    var details by remember { mutableStateOf("") }
+    var categoryExpanded by remember { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (hindi) "सेवा प्रदाता पंजीकरण" else "Register as a service provider") },
+        text = {
+            Column(Modifier.fillMaxWidth().heightIn(max = 520.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(business, { business = it.take(80) },
+                    label = { Text(if (hindi) "व्यवसाय / दुकान का नाम" else "Business / shop name") }, singleLine = true)
+                Box {
+                    OutlinedButton(onClick = { categoryExpanded = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text(categoryLabel(category, hindi))
+                    }
+                    DropdownMenu(expanded = categoryExpanded, onDismissRequest = { categoryExpanded = false }) {
+                        services.forEach { service ->
+                            DropdownMenuItem(text = { Text(categoryLabel(service, hindi)) },
+                                onClick = { category = service; categoryExpanded = false })
+                        }
+                    }
+                }
+                OutlinedTextField(contactName, { contactName = it.take(80) },
+                    label = { Text(if (hindi) "संपर्क व्यक्ति" else "Contact person") }, singleLine = true)
+                OutlinedTextField(verifiedPhone, {}, enabled = false,
+                    label = { Text(if (hindi) "OTP-सत्यापित मोबाइल" else "OTP-verified phone") }, singleLine = true)
+                OutlinedTextField(city, { city = it.take(80) },
+                    label = { Text(if (hindi) "शहर" else "City") }, singleLine = true)
+                OutlinedTextField(area, { area = it.take(100) },
+                    label = { Text(if (hindi) "इलाका / कॉलोनी" else "Area / neighbourhood") }, singleLine = true)
+                OutlinedTextField(details, { details = it.take(500) },
+                    label = { Text(if (hindi) "सेवा का विवरण (वैकल्पिक)" else "Service details (optional)") }, minLines = 2)
+                Text(if (hindi) "आपका आवेदन समीक्षा के बाद ही सार्वजनिक होगा।"
+                    else "Your application will become public only after moderation.",
+                    color = MarketplaceMuted, fontSize = 11.sp)
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = business.trim().length >= 2 && contactName.trim().length >= 2 &&
+                city.trim().length >= 2 && area.trim().length >= 2,
+                onClick = { onSubmit(business.trim(), category, contactName.trim(), city.trim(), area.trim(), details.trim()) }) {
+                Text(if (hindi) "समीक्षा के लिए भेजें" else "Submit for review")
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(if (hindi) "रद्द करें" else "Cancel") } }
+    )
+}
+
