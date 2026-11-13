@@ -197,15 +197,14 @@ private fun CalculatorDialog(type: String, hindi: Boolean, onDismiss: () -> Unit
     val a = first.toDoubleOrNull()
     val b = second.toDoubleOrNull()
     val result = when (type) {
-        "discount" -> if (a != null && b != null && a >= 0 && b in 0.0..100.0) {
-            String.format(Locale.getDefault(), "%.2f", a * (1 - b / 100))
-        } else null
-        "gst" -> if (a != null && b != null && a >= 0 && b in 0.0..100.0) {
-            String.format(Locale.getDefault(), "GST %.2f · Total %.2f", a * b / 100, a * (1 + b / 100))
-        } else null
-        "percentage" -> if (a != null && b != null) String.format(Locale.getDefault(), "%.2f", a * b / 100) else null
-        "units" -> if (a != null && a >= 0) String.format(Locale.getDefault(),
-            "%.3f g · %.3f m · %.3f mL", a * 1000, a * 1000, a * 1000) else null
+        "discount" -> EverydayCalculations.discountedPrice(a, b)?.let { String.format(Locale.getDefault(), "%.2f", it) }
+        "gst" -> EverydayCalculations.gstBreakdown(a, b)?.let {
+            String.format(Locale.getDefault(), "GST %.2f · Total %.2f", it.gstAmount, it.total)
+        }
+        "percentage" -> EverydayCalculations.percentageOf(a, b)?.let { String.format(Locale.getDefault(), "%.2f", it) }
+        "units" -> EverydayCalculations.metricConversions(a)?.let {
+            String.format(Locale.getDefault(), "%.3f g · %.3f m · %.3f mL", it.grams, it.metres, it.millilitres)
+        }
         else -> null
     }
     val title = when (type) {
