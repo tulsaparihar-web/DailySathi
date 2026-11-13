@@ -225,7 +225,7 @@ create or replace function public.create_neighborhood_listing(
     p_contact_phone text, p_city text, p_area text,
     p_latitude double precision, p_longitude double precision
 )
-returns uuid language plpgsql security definer set search_path = public as $
+returns uuid language plpgsql security definer set search_path = public as $$
 declare new_id uuid; verified_phone text;
 begin
     if auth.uid() is null then raise exception 'Sign in with phone verification to post an item'; end if;
