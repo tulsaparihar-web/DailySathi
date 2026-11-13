@@ -100,7 +100,7 @@ internal fun NeighborhoodMarketplaceScreen(hindi: Boolean, modifier: Modifier = 
         val coarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
         if (fine || coarse) {
             locationBusy = true
-            readCurrentLocation(context, onLocation = { location = it; locationBusy = false; message = null },
+            readCurrentLocation(context, onLocation = { location = it; locationBusy = false; message = null; if (pendingProviderDialog) { pendingProviderDialog = false; showProviderDialog = true } },
                 onFailure = { locationBusy = false; message = it })
         } else {
             locationBusy = true
