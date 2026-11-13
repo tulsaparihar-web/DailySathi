@@ -81,7 +81,7 @@ private fun DailySathiTheme(content: @Composable () -> Unit) {
 }
 
 private enum class MainTab(val label: String) {
-    HOME("Home"), CALENDAR("Calendar"), TASKS("Tasks"), SERVICES("Services"), SETTINGS("Settings")
+    HOME("Home"), CALENDAR("Calendar"), TASKS("Tasks"), SERVICES("Services"), TOOLS("Tools"), SETTINGS("Settings")
 }
 
 @Composable
@@ -148,6 +148,7 @@ private fun DailySathiApp(database: DailySathiDatabase, openCalendarOnLaunch: Bo
                         MainTab.CALENDAR -> Icons.Default.CalendarMonth
                         MainTab.TASKS -> Icons.Default.CheckCircle
                         MainTab.SERVICES -> Icons.Default.Handyman
+                        MainTab.TOOLS -> Icons.Default.Calculate
                         MainTab.SETTINGS -> Icons.Default.Settings
                     }
                     NavigationBarItem(
@@ -221,6 +222,7 @@ private fun DailySathiApp(database: DailySathiDatabase, openCalendarOnLaunch: Bo
                 onEdit = { editingReminder = it }
             )
             MainTab.SERVICES -> LocalServicesScreen(hindi, Modifier.padding(padding))
+            MainTab.TOOLS -> EverydayToolsScreen(hindi, Modifier.padding(padding))
             MainTab.SETTINGS -> SettingsScreen(
                 hindi, { hindi = it }, Modifier.padding(padding),
                 onExport = { exportLauncher.launch("DailySathi-Backup.json") },
