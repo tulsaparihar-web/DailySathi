@@ -214,7 +214,7 @@ internal fun NeighborhoodMarketplaceScreen(hindi: Boolean, modifier: Modifier = 
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         (listOf("All") + resaleCategories).forEach { value ->
                             FilterChip(selected = category == value, onClick = { category = value },
-                                label = { Text(if (value == "All") { if (hindi) "सभी" else "All" } else value) })
+                                label = { Text(if (value == "All") { if (hindi) "सभी" else "All" } else resaleCategoryLabel(value, hindi)) })
                         }
                     }
                 }
@@ -313,7 +313,7 @@ internal fun NeighborhoodMarketplaceScreen(hindi: Boolean, modifier: Modifier = 
                                     else -> "₹" + item.priceInr.toLong()
                                 }, color = MarketplaceTeal, fontWeight = FontWeight.Bold)
                             }
-                            Text(item.category + " · " + item.area + ", " + item.city,
+                            Text(resaleCategoryLabel(item.category, hindi) + " · " + item.area + ", " + item.city,
                                 color = MarketplaceMuted, fontSize = 12.sp)
                             Text((if (hindi) "स्थिति: " else "Condition: ") + item.itemCondition.replace('_',' ') +
                                 " · " + String.format(java.util.Locale.US, "%.1f km", item.distanceKm),
@@ -668,4 +668,23 @@ private fun readCurrentLocation(
             }
         }, 15000L)
     }
+}
+
+private fun resaleCategoryLabel(value: String, hindi: Boolean): String = if (!hindi) value else when (value) {
+    "Furniture" -> "फर्नीचर"
+    "Kids items" -> "बच्चों का सामान"
+    "Electronics" -> "इलेक्ट्रॉनिक्स"
+    "Books" -> "किताबें"
+    "Home & Kitchen" -> "घर और रसोई"
+    "Clothing" -> "कपड़े"
+    "Sports & Hobby" -> "खेल और शौक"
+    "Other" -> "अन्य"
+    else -> value
+}
+
+private fun conditionLabel(value: String, hindi: Boolean): String = if (!hindi) value.replace('_', ' ') else when (value) {
+    "like_new" -> "लगभग नया"
+    "good" -> "अच्छा"
+    "fair" -> "ठीक-ठाक"
+    else -> value
 }
