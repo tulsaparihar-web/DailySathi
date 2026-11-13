@@ -82,7 +82,8 @@ begin
            ), 0),
            review_count = (select count(*) from public.service_provider_reviews r where r.provider_id = target_id)
      where p.id = target_id;
-    return coalesce(new, old);
+    if tg_op = 'DELETE' then return old; end if;
+    return new;
 end;
 $$;
 drop trigger if exists service_provider_reviews_rating_refresh on public.service_provider_reviews;
@@ -241,6 +242,41 @@ begin
     return new_id;
 end;
 $$;
+
+
+-- Providers set their own private service location only after signing in.
+create or replace function public.set_neighborhood_service_location(
+    p_provider_id uuid, p_latitude double precision, p_longitude double precision
+)
+returns void language plpgsql security definer set search_path = public as $
+begin
+    if auth.uid() is null then raise exception 'Sign in is required'; end if;
+    if p_latitude not between -90 and 90 or p_longitude not between -180 and 180 then
+        raise exception 'Invalid coordinates';
+    end if;
+    if not exists (
+        select 1 from public.service_providers p
+        where p.id = p_provider_id and p.owner_id = auth.uid() and p.status = 'pending'
+    ) then raise exception 'Only the owner of a pending provider application can set its location'; end if;
+    insert into public.neighborhood_service_locations(provider_id,latitude,longitude)
+    values (p_provider_id,p_latitude,p_longitude)
+    on conflict (provider_id) do update
+      set latitude = excluded.latitude, longitude = excluded.longitude, updated_at = now();
+end;
+$;
+grant execute on function public.set_neighborhood_service_location(uuid,double precision,double precision) to authenticated;
+
+-- Public review feed deliberately omits reviewer IDs and other account details.
+create or replace function public.get_service_provider_reviews(p_provider_id uuid)
+returns table (rating integer, review_text text, created_at timestamptz)
+language sql stable security definer set search_path = public as $
+    select r.rating, r.review_text, r.created_at
+      from public.service_provider_reviews r
+      join public.service_providers p on p.id = r.provider_id
+     where r.provider_id = p_provider_id and p.status = 'approved'
+     order by r.created_at desc limit 50;
+$;
+grant execute on function public.get_service_provider_reviews(uuid) to anon, authenticated;
 
 grant execute on function public.find_nearby_service_providers(double precision,double precision,double precision,text) to anon, authenticated;
 grant execute on function public.find_nearby_neighborhood_listings(double precision,double precision,double precision,text) to anon, authenticated;
