@@ -74,17 +74,6 @@ internal fun NeighborhoodMarketplaceScreen(hindi: Boolean, modifier: Modifier = 
     var reportReason by remember { mutableStateOf("other") }
     var reportDetails by remember { mutableStateOf("") }
 
-    fun startLocationRequest() {
-        val fine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-        val coarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
-        if (!fine && !coarse) {
-            locationBusy = true
-            permissionLauncherPlaceholder()
-            return
-        }
-        readCurrentLocation(context, onLocation = { location = it; locationBusy = false; message = null },
-            onFailure = { locationBusy = false; message = it })
-    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
