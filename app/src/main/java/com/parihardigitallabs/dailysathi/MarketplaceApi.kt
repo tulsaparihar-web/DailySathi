@@ -23,7 +23,8 @@ data class MarketplaceProvider(
 data class MarketplaceSession(
     val accessToken: String,
     val refreshToken: String,
-    val userId: String
+    val userId: String,
+    val phone: String
 )
 
 data class NearbyRepairProvider(
@@ -88,7 +89,8 @@ class MarketplaceApi {
         MarketplaceSession(
             accessToken = response.getString("access_token"),
             refreshToken = response.optString("refresh_token"),
-            userId = user.getString("id")
+            userId = user.getString("id"),
+            phone = user.optString("phone", phone)
         )
     }
 
