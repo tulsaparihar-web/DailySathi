@@ -439,7 +439,11 @@ internal fun NeighborhoodMarketplaceScreen(hindi: Boolean, modifier: Modifier = 
                                     runCatching { api.getNeighborhoodListingContact(it, listingId) }
                                         .onSuccess { phone -> context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone"))) }
                                         .onFailure { message = it.message ?: "Unable to retrieve seller contact." }
-                                } else if (reportTarget == null) showCreateDialog = true
+                                } else if (authPurpose == "my") {
+                                    loadMyListings()
+                                } else if (authPurpose == "post" && reportTarget == null) {
+                                    showCreateDialog = true
+                                }
                             }
                             .onFailure { message = it.message ?: "OTP verification failed." }
                         authBusy = false
@@ -462,8 +466,12 @@ internal fun NeighborhoodMarketplaceScreen(hindi: Boolean, modifier: Modifier = 
                     runCatching {
                         api.createNeighborhoodListing(session!!, title, description, cat, type, condition,
                             price, swap, phone, town, neighbourhood, current.latitude, current.longitude)
-                    }.onSuccess { message = if (hindi) "आपकी लिस्टिंग समीक्षा के लिए भेजी गई है। स्वीकृति के बाद दिखाई देगी।"
-                        else "Your listing was submitted for review and will appear after approval." }
+                    }.onSuccess {
+                        message = if (hindi) "आपकी लिस्टिंग समीक्षा के लिए भेजी गई है। स्वीकृति के बाद दिखाई देगी।"
+                            else "Your listing was submitted for review and will appear after approval."
+                        showMyListings = true
+                        loadMyListings()
+                    }
                         .onFailure { message = it.message ?: "Unable to create listing." }
                     loading = false
                 }
@@ -471,7 +479,7 @@ internal fun NeighborhoodMarketplaceScreen(hindi: Boolean, modifier: Modifier = 
         }
     }
 
-    reportTarget?.let { item ->
+    if (session != null) reportTarget?.let { item ->
         AlertDialog(
             onDismissRequest = { reportTarget = null },
             title = { Text(if (hindi) "लिस्टिंग रिपोर्ट करें" else "Report listing") },
