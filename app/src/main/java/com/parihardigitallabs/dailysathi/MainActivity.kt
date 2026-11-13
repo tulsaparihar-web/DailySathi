@@ -18,6 +18,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
@@ -432,7 +434,10 @@ private fun HomeScreen(
         }
         item {
             Surface(shape = RoundedCornerShape(24.dp), color = Navy, modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(
+                    Modifier.background(Brush.linearGradient(listOf(Navy, DailyBlue, Teal))).padding(22.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Text(if (hindi) "नमस्ते!" else "Hello there!", color = Color.White.copy(alpha = .8f))
                     Text(
                         if (hindi) "आज की छोटी बातें,\nकल की बड़ी राहत।" else "Make room for what\nmatters today.",
@@ -1470,13 +1475,17 @@ private fun SettingsScreen(
     ) {
         Text(if (hindi) "सेटिंग्स" else "Settings",
             fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Navy)
-        Surface(color = Color.White, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
-            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(if (hindi) "ऐप की भाषा" else "App language", fontWeight = FontWeight.SemiBold)
-                    Text(if (hindi) "हिंदी" else "English", color = Slate.copy(alpha = .6f), fontSize = 12.sp)
+        Surface(color = Color.White, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth(), tonalElevation = 1.dp) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(if (hindi) "ऐप की भाषा" else "App language", fontWeight = FontWeight.SemiBold, color = Navy)
+                Text(if (hindi) "किसी भी समय भाषा बदलें।" else "Change the app language whenever you like.",
+                    color = Slate.copy(alpha = .65f), fontSize = 12.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = hindi, onClick = { onLanguageChange(true) },
+                        label = { Text("हिन्दी") }, leadingIcon = { if (hindi) Icon(Icons.Default.Check, contentDescription = null) })
+                    FilterChip(selected = !hindi, onClick = { onLanguageChange(false) },
+                        label = { Text("English") }, leadingIcon = { if (!hindi) Icon(Icons.Default.Check, contentDescription = null) })
                 }
-                Switch(checked = hindi, onCheckedChange = onLanguageChange)
             }
         }
         Surface(color = Color.White, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
