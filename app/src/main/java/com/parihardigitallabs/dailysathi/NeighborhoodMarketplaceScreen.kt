@@ -105,6 +105,7 @@ internal fun NeighborhoodMarketplaceScreen(hindi: Boolean, modifier: Modifier = 
 
     fun loadNearby() {
         val current = location
+        val selectedSection = section
         if (!api.isConfigured) {
             message = if (hindi) "ऑनलाइन मार्केटप्लेस जोड़ने के लिए Supabase सेटअप आवश्यक है।"
                 else "Supabase setup is required to connect the online marketplace."
@@ -119,7 +120,7 @@ internal fun NeighborhoodMarketplaceScreen(hindi: Boolean, modifier: Modifier = 
         message = null
         scope.launch {
             runCatching {
-                if (section == "repair") {
+                if (selectedSection == "repair") {
                     api.listNearbyRepairProviders(current.latitude, current.longitude, radius.toDouble(),
                         category.takeIf { it != "All" })
                 } else {
@@ -127,7 +128,7 @@ internal fun NeighborhoodMarketplaceScreen(hindi: Boolean, modifier: Modifier = 
                         category.takeIf { it != "All" })
                 }
             }.onSuccess { result ->
-                if (section == "repair") {
+                if (selectedSection == "repair") {
                     @Suppress("UNCHECKED_CAST")
                     repairProviders = result as List<NearbyRepairProvider>
                 } else {
@@ -384,7 +385,7 @@ internal fun NeighborhoodMarketplaceScreen(hindi: Boolean, modifier: Modifier = 
     }
 
     if (showCreateDialog) {
-        CreateNeighborhoodListingDialog(hindi, onDismiss = { showCreateDialog = false }) { title, description, cat, type, condition, price, swap, phone, town, neighbourhood ->
+        CreateNeighborhoodListingDialog(hindi, session?.phone.orEmpty(), onDismiss = { showCreateDialog = false }) { title, description, cat, type, condition, price, swap, phone, town, neighbourhood ->
             val current = location
             if (current == null) {
                 message = if (hindi) "पोस्ट करने से पहले लोकेशन प्राप्त करें।" else "Get your location before posting."
@@ -451,7 +452,7 @@ internal fun NeighborhoodMarketplaceScreen(hindi: Boolean, modifier: Modifier = 
 
 @Composable
 private fun CreateNeighborhoodListingDialog(
-    hindi: Boolean, onDismiss: () -> Unit,
+    hindi: Boolean, verifiedPhone: String, onDismiss: () -> Unit,
     onSave: (String, String, String, String, String, Double, String, String, String, String) -> Unit
 ) {
     var title by remember { mutableStateOf("") }
@@ -461,7 +462,7 @@ private fun CreateNeighborhoodListingDialog(
     var condition by remember { mutableStateOf("good") }
     var price by remember { mutableStateOf("") }
     var swap by remember { mutableStateOf("") }
-    var phone by remember { mutableStateOf("+91") }
+    var phone by remember(verifiedPhone) { mutableStateOf(verifiedPhone) }
     var city by remember { mutableStateOf("") }
     var area by remember { mutableStateOf("") }
     AlertDialog(
@@ -502,9 +503,13 @@ private fun CreateNeighborhoodListingDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
                 if (type == "swap") OutlinedTextField(value = swap, onValueChange = { swap = it.take(300) },
                     label = { Text(if (hindi) "किससे बदलना चाहेंगे?" else "What would you swap for?") })
-                OutlinedTextField(value = phone, onValueChange = { phone = it.filter { c -> c.isDigit() || c == '+' }.take(16) },
-                    label = { Text(if (hindi) "संपर्क नंबर (+91 सहित)" else "Contact number (include +91)") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), singleLine = true)
+                OutlinedTextField(value = phone, onValueChange = { },
+                    label = { Text(if (hindi) "सत्यापित संपर्क नंबर" else "Verified contact number") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), singleLine = true,
+                    enabled = false)
+                Text(if (hindi) "लिस्टिंग पर यही OTP-सत्यापित नंबर दिखाया जाएगा।"
+                    else "This OTP-verified number will be used for seller contact.",
+                    color = MarketplaceMuted, fontSize = 11.sp)
                 OutlinedTextField(value = city, onValueChange = { city = it.take(80) },
                     label = { Text(if (hindi) "शहर" else "City") }, singleLine = true)
                 OutlinedTextField(value = area, onValueChange = { area = it.take(100) },
