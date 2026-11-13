@@ -5,6 +5,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import org.json.JSONTokener
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -23,6 +24,43 @@ data class MarketplaceSession(
     val accessToken: String,
     val refreshToken: String,
     val userId: String
+)
+
+data class NearbyRepairProvider(
+    val id: String,
+    val businessName: String,
+    val category: String,
+    val contactName: String,
+    val phone: String,
+    val city: String,
+    val area: String,
+    val description: String,
+    val verificationLevel: String,
+    val averageRating: Double,
+    val reviewCount: Int,
+    val distanceKm: Double
+)
+
+data class NeighborhoodListing(
+    val id: String,
+    val title: String,
+    val description: String,
+    val category: String,
+    val listingType: String,
+    val itemCondition: String,
+    val priceInr: Double,
+    val swapPreferences: String,
+    val contactPhone: String,
+    val city: String,
+    val area: String,
+    val createdAt: String,
+    val distanceKm: Double
+)
+
+data class ProviderCommunityReview(
+    val rating: Int,
+    val reviewText: String,
+    val createdAt: String
 )
 
 class MarketplaceApi {
@@ -117,6 +155,143 @@ class MarketplaceApi {
         )
     }
 
+
+    suspend fun listNearbyRepairProviders(
+        latitude: Double, longitude: Double, radiusKm: Double = 3.0, category: String? = null
+    ): List<NearbyRepairProvider> = withContext(Dispatchers.IO) {
+        require(radiusKm in 2.0..5.0) { "Search radius must be between 2 and 5 km." }
+        val body = JSONObject()
+            .put("p_latitude", latitude)
+            .put("p_longitude", longitude)
+            .put("p_radius_km", radiusKm)
+            .put("p_category", category?.takeIf { it.isNotBlank() && it != "All" })
+        val rows = request("/rest/v1/rpc/find_nearby_service_providers", "POST", body) as? JSONArray
+            ?: JSONArray()
+        (0 until rows.length()).map { index ->
+            val item = rows.getJSONObject(index)
+            NearbyRepairProvider(
+                id = item.getString("id"),
+                businessName = item.getString("business_name"),
+                category = item.getString("category"),
+                contactName = item.optString("contact_name"),
+                phone = item.optString("phone"),
+                city = item.optString("city"),
+                area = item.optString("area"),
+                description = item.optString("description"),
+                verificationLevel = item.optString("verification_level", "unverified"),
+                averageRating = item.optDouble("average_rating", 0.0),
+                reviewCount = item.optInt("review_count", 0),
+                distanceKm = item.optDouble("distance_km", 0.0)
+            )
+        }
+    }
+
+    suspend fun listNearbyListings(
+        latitude: Double, longitude: Double, radiusKm: Double = 3.0, category: String? = null
+    ): List<NeighborhoodListing> = withContext(Dispatchers.IO) {
+        require(radiusKm in 2.0..5.0) { "Search radius must be between 2 and 5 km." }
+        val body = JSONObject()
+            .put("p_latitude", latitude)
+            .put("p_longitude", longitude)
+            .put("p_radius_km", radiusKm)
+            .put("p_category", category?.takeIf { it.isNotBlank() && it != "All" })
+        val rows = request("/rest/v1/rpc/find_nearby_neighborhood_listings", "POST", body) as? JSONArray
+            ?: JSONArray()
+        (0 until rows.length()).map { index ->
+            val item = rows.getJSONObject(index)
+            NeighborhoodListing(
+                id = item.getString("id"),
+                title = item.getString("title"),
+                description = item.optString("description"),
+                category = item.getString("category"),
+                listingType = item.getString("listing_type"),
+                itemCondition = item.getString("item_condition"),
+                priceInr = item.optDouble("price_inr", 0.0),
+                swapPreferences = item.optString("swap_preferences"),
+                contactPhone = item.optString("contact_phone"),
+                city = item.optString("city"),
+                area = item.optString("area"),
+                createdAt = item.optString("created_at"),
+                distanceKm = item.optDouble("distance_km", 0.0)
+            )
+        }
+    }
+
+    suspend fun createNeighborhoodListing(
+        session: MarketplaceSession,
+        title: String, description: String, category: String, listingType: String,
+        itemCondition: String, priceInr: Double, swapPreferences: String,
+        contactPhone: String, city: String, area: String,
+        latitude: Double, longitude: Double
+    ): String = withContext(Dispatchers.IO) {
+        val body = JSONObject()
+            .put("p_title", title.trim())
+            .put("p_description", description.trim())
+            .put("p_category", category)
+            .put("p_listing_type", listingType)
+            .put("p_item_condition", itemCondition)
+            .put("p_price_inr", priceInr)
+            .put("p_swap_preferences", swapPreferences.trim())
+            .put("p_contact_phone", contactPhone.trim())
+            .put("p_city", city.trim())
+            .put("p_area", area.trim())
+            .put("p_latitude", latitude)
+            .put("p_longitude", longitude)
+        request("/rest/v1/rpc/create_neighborhood_listing", "POST", body, session.accessToken) as? String
+            ?: error("The listing could not be created.")
+    }
+
+    suspend fun getProviderReviews(providerId: String): List<ProviderCommunityReview> =
+        withContext(Dispatchers.IO) {
+            val rows = request(
+                "/rest/v1/rpc/get_service_provider_reviews",
+                "POST",
+                JSONObject().put("p_provider_id", providerId)
+            ) as? JSONArray ?: JSONArray()
+            (0 until rows.length()).map { index ->
+                val item = rows.getJSONObject(index)
+                ProviderCommunityReview(
+                    rating = item.optInt("rating"),
+                    reviewText = item.optString("review_text"),
+                    createdAt = item.optString("created_at")
+                )
+            }
+        }
+
+    suspend fun submitProviderReview(
+        session: MarketplaceSession, providerId: String, rating: Int, reviewText: String
+    ) = withContext(Dispatchers.IO) {
+        require(rating in 1..5)
+        request(
+            "/rest/v1/service_provider_reviews",
+            "POST",
+            JSONObject()
+                .put("provider_id", providerId)
+                .put("reviewer_id", session.userId)
+                .put("rating", rating)
+                .put("review_text", reviewText.take(500)),
+            session.accessToken,
+            prefer = "resolution=merge-duplicates,return=minimal"
+        )
+    }
+
+    suspend fun reportNeighborhoodListing(
+        session: MarketplaceSession, listingId: String, reason: String, details: String = ""
+    ) = withContext(Dispatchers.IO) {
+        require(reason in setOf("spam", "fraud", "unsafe", "prohibited", "other"))
+        request(
+            "/rest/v1/neighborhood_listing_reports",
+            "POST",
+            JSONObject()
+                .put("listing_id", listingId)
+                .put("reporter_id", session.userId)
+                .put("reason", reason)
+                .put("details", details.take(500)),
+            session.accessToken,
+            prefer = "return=minimal"
+        )
+    }
+
     private fun request(
         path: String,
         method: String,
@@ -151,7 +326,7 @@ class MarketplaceApi {
             when {
                 response.isBlank() -> JSONObject()
                 response.trimStart().startsWith("[") -> JSONArray(response)
-                else -> JSONObject(response)
+                else -> JSONTokener(response).nextValue()
             }
         } finally {
             connection.disconnect()
