@@ -1,0 +1,95 @@
+name: Marketplace SQL CI
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'backend/supabase/neighborhood_marketplace.sql'
+      - '.github/workflows/marketplace-sql-ci.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'backend/supabase/neighborhood_marketplace.sql'
+      - '.github/workflows/marketplace-sql-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-marketplace-migration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: daily_sathi_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d daily_sathi_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+      - name: Create minimal Supabase-compatible test schema
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d daily_sathi_test -v ON_ERROR_STOP=1 <<'SQL'
+          create role anon nologin;
+          create role authenticated nologin;
+          create schema auth;
+          create table auth.users (id uuid primary key);
+          create or replace function auth.uid()
+          returns uuid language sql stable as $$ select null::uuid $$;
+          create or replace function auth.jwt()
+          returns jsonb language sql stable as $$ select '{}'::jsonb $$;
+          create extension if not exists pgcrypto;
+          create table public.service_providers (
+            id uuid primary key default gen_random_uuid(),
+            owner_id uuid references auth.users(id) on delete set null,
+            business_name text not null,
+            category text not null,
+            contact_name text not null,
+            phone text not null,
+            city text not null,
+            area text not null,
+            description text,
+            status text not null default 'pending',
+            created_at timestamptz not null default now()
+          );
+          SQL
+      - name: Apply neighbourhood marketplace migration
+        env:
+          PGPASSWORD: postgres
+        run: psql -h localhost -U postgres -d daily_sathi_test -v ON_ERROR_STOP=1 -f backend/supabase/neighborhood_marketplace.sql
+      - name: Verify tables, row-level security and RPCs
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d daily_sathi_test -v ON_ERROR_STOP=1 <<'SQL'
+          do $$
+          begin
+            if not (select relrowsecurity from pg_class where oid = 'public.neighborhood_listings'::regclass) then
+              raise exception 'RLS is not enabled on neighborhood_listings';
+            end if;
+            if not (select relrowsecurity from pg_class where oid = 'public.neighborhood_listing_reports'::regclass) then
+              raise exception 'RLS is not enabled on neighborhood_listing_reports';
+            end if;
+            if to_regprocedure('public.create_neighborhood_listing(text,text,text,text,text,numeric,text,text,text,text,double precision,double precision)') is null then
+              raise exception 'create_neighborhood_listing RPC is missing';
+            end if;
+            if to_regprocedure('public.find_nearby_neighborhood_listings(double precision,double precision,double precision,text)') is null then
+              raise exception 'find_nearby_neighborhood_listings RPC is missing';
+            end if;
+          end
+          $$;
+          SQL
