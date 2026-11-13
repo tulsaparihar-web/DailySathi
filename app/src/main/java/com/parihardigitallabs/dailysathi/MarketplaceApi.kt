@@ -210,6 +210,7 @@ class MarketplaceApi {
                 itemCondition = item.getString("item_condition"),
                 priceInr = item.optDouble("price_inr", 0.0),
                 swapPreferences = item.optString("swap_preferences"),
+                status = item.optString("status", "active"),
                 city = item.optString("city"),
                 area = item.optString("area"),
                 createdAt = item.optString("created_at"),
