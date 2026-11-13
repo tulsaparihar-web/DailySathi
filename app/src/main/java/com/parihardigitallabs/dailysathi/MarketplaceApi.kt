@@ -50,7 +50,6 @@ data class NeighborhoodListing(
     val itemCondition: String,
     val priceInr: Double,
     val swapPreferences: String,
-    val contactPhone: String,
     val city: String,
     val area: String,
     val createdAt: String,
@@ -208,7 +207,6 @@ class MarketplaceApi {
                 itemCondition = item.getString("item_condition"),
                 priceInr = item.optDouble("price_inr", 0.0),
                 swapPreferences = item.optString("swap_preferences"),
-                contactPhone = item.optString("contact_phone"),
                 city = item.optString("city"),
                 area = item.optString("area"),
                 createdAt = item.optString("created_at"),
@@ -239,6 +237,28 @@ class MarketplaceApi {
             .put("p_longitude", longitude)
         request("/rest/v1/rpc/create_neighborhood_listing", "POST", body, session.accessToken) as? String
             ?: error("The listing could not be created.")
+    }
+
+    suspend fun getNeighborhoodListingContact(session: MarketplaceSession, listingId: String): String =
+        withContext(Dispatchers.IO) {
+            request(
+                "/rest/v1/rpc/get_neighborhood_listing_contact",
+                "POST",
+                JSONObject().put("p_listing_id", listingId),
+                session.accessToken
+            ) as? String ?: error("Seller contact is not available.")
+        }
+
+    suspend fun updateNeighborhoodListingStatus(
+        session: MarketplaceSession, listingId: String, status: String
+    ) = withContext(Dispatchers.IO) {
+        require(status in setOf("reserved", "sold", "removed"))
+        request(
+            "/rest/v1/rpc/set_neighborhood_listing_status",
+            "POST",
+            JSONObject().put("p_listing_id", listingId).put("p_status", status),
+            session.accessToken
+        )
     }
 
     suspend fun getProviderReviews(providerId: String): List<ProviderCommunityReview> =
