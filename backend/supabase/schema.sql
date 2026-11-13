@@ -51,6 +51,12 @@ create policy "Public can submit pending listings"
         or (auth.uid() is not null and owner_id = auth.uid() and status = 'pending')
     );
 
+-- Providers can read their own pending application after authenticated submission.
+drop policy if exists "Providers can view own pending listings" on public.service_providers;
+create policy "Providers can view own pending listings"
+    on public.service_providers for select to authenticated
+    using (owner_id = auth.uid() and status = 'pending');
+
 -- Providers can edit their own pending listings. Approved listings require
 -- admin moderation before any public profile changes take effect.
 drop policy if exists "Providers can edit pending listings" on public.service_providers;
