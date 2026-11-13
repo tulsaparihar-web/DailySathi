@@ -1,9 +1,9 @@
-# DailySathi
+# आस-पास: लोकल रिपेयर और पुराना सामान
 
 **A product of Parihar Digital Labs**  
-*Technology that makes life easier.*
+*आपके आस-पास की मदद, भरोसे के साथ।*
 
-DailySathi is an India-focused personal productivity and everyday utility application. It is being developed Android-first with Kotlin, Jetpack Compose and an offline-first data layer.
+आस-पास is a neighbourhood-first everyday utility and local marketplace application for India. It is being developed Android-first with Kotlin, Jetpack Compose and an offline-first data layer.
 
 ## Product scope
 - Smart reminders with one-time and recurring schedules
