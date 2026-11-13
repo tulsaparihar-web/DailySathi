@@ -14,7 +14,7 @@ This checklist separates automated checks from real-device checks. A green GitHu
 
 ### Installation and data preservation
 - [ ] Install the current debug APK on a test device.
-- [ ] Confirm app opens and navigates between all five tabs.
+- [ ] Confirm app opens and navigates between all six tabs (Home, Calendar, Tasks, Services, Tools, Settings).
 - [ ] Create sample reminders and local service entries.
 - [ ] Install a later build over the current build and confirm app data remains.
 - [ ] Confirm app data survives force-stop and device restart.
@@ -41,6 +41,17 @@ This checklist separates automated checks from real-device checks. A green GitHu
 - [ ] Add/edit/remove a local provider entry if the current UI supports it.
 - [ ] Verify favorites, ratings and feedback persist after app restart.
 - [ ] Verify the app clearly distinguishes user-provided provider information from independently verified information.
+
+### Everyday Tools
+- [ ] Verify discount calculation at 0%, 100%, and a typical rate; reject negative amounts and rates outside 0–100%.
+- [ ] Verify GST amount and total at common rates (5%, 12%, 18%, 28%).
+- [ ] Verify percentage calculation with decimal values and zero values.
+- [ ] Verify unit conversion output for kg→g, km→m and litres→mL; confirm the input unit label is clear.
+- [ ] Add, complete, uncomplete and remove shopping checklist items.
+- [ ] Force-stop and reopen the app; verify shopping checklist entries and completion states persist.
+- [ ] Tap emergency shortcuts and verify they open the dialer (not an automatic call); cancel without dialing.
+- [ ] Verify emergency numbers and explanatory disclaimer in Hindi and English.
+- [ ] Verify the Tools tab is usable on a small screen with the keyboard open and with large font settings.
 
 ### Language, backup and restore
 - [ ] Switch English to Hindi and back; verify selection persists after restart.
