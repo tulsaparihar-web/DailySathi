@@ -55,8 +55,9 @@ create index if not exists service_provider_reviews_provider_idx
     on public.service_provider_reviews(provider_id, created_at desc);
 alter table public.service_provider_reviews enable row level security;
 drop policy if exists "Public can read provider reviews" on public.service_provider_reviews;
-create policy "Public can read provider reviews"
-    on public.service_provider_reviews for select to anon, authenticated using (true);
+drop policy if exists "Users can read their own provider reviews" on public.service_provider_reviews;
+create policy "Users can read their own provider reviews"
+    on public.service_provider_reviews for select to authenticated using (reviewer_id = auth.uid());
 drop policy if exists "Signed-in users can review approved providers" on public.service_provider_reviews;
 create policy "Signed-in users can review approved providers"
     on public.service_provider_reviews for insert to authenticated
